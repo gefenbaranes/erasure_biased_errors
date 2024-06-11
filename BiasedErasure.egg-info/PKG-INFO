@@ -1,0 +1,10 @@
+Metadata-Version: 2.1
+Name: BiasedErasure
+Version: 0.1.0
+Summary: Simulate logical circuits with loss errors with efficient smart decoding
+Author: Gefen Baranes and Pablo Bonilla
+Author-email: gefenbaranes123@gmail.com
+License: LICENSE
+License-File: LICENSE
+
+# BiasedErasure
