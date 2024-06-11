@@ -156,11 +156,7 @@ class MLE_Loss_Decoder:
                 print(f"types of rounds: {self.QEC_round_types}")
                 print(f"lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
             
-            
-            # if self.qubit_lifecycles_and_losses[26][0][2] == True:
-                # stop=1
-        # if len(self.real_losses_by_instruction_ix) > 0:
-            
+
             # Step 1 - generate the circuit that is really running in the experiment, for the given loss pattern (without gates after losing qubits):
             experimental_circuit = self.generate_loss_circuit(losses_by_instruction_ix = self.real_losses_by_instruction_ix, removing_Pauli_errors=False)
         
@@ -195,17 +191,17 @@ class MLE_Loss_Decoder:
     
     
     
-    def generate_dem_loss_mle_experiment(self, detection_event):
+    def generate_dem_loss_mle_experiment(self, measurement_event):
         """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
         
         # updated before for all shots together: self.qubit_lifecycles_and_losses, self.rounds_by_ix, self.measurement_map
         
-        shot_had_a_loss = 2 in detection_event
+        shot_had_a_loss = 2 in measurement_event
 
         if shot_had_a_loss:
             # Step 1 - find out which qubit was lost in which round:
             self.qubit_lifecycles_and_losses = self.qubit_lifecycles_and_losses_init.copy() # init self.qubit_lifecycles_and_losses for this shot
-            self.update_lifecycle_from_detections(detection_event=detection_event) # update self.qubit_lifecycles_and_losses according to detection_events
+            self.update_lifecycle_from_detections(detection_event=measurement_event) # update self.qubit_lifecycles_and_losses according to measurement_events
             
             if self.printing:
                 print(f"lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
@@ -226,13 +222,16 @@ class MLE_Loss_Decoder:
                     print("Now lets see all loss pattern and which detectors were affected:")
                     for element in self.losses_to_detectors:
                         print(element)
-                
-            return final_dem_hyperedges_matrix, self.extra_num_detectors
             
+
         else: # no losses in this shot, bring back regular DEM
-            final_dem = self.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
-            final_dem_hyperedges_matrix = self.convert_dem_into_hyperedges_matrix(final_dem, event_probability=1)
-            return final_dem_hyperedges_matrix, 0
+            final_dem_hyperedges_matrix = self.Pauli_DEM_matrix # here observables are represented as detectors
+            
+        
+        # Final step - remove observabes from hyperedgesmatrix and create a list of lists of errors that affect observables
+        final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
+            
+        return final_dem_hyperedges_matrix, observables_errors_interactions
 
     
     def update_lifecycle_from_detections(self, detection_event):
@@ -242,7 +241,7 @@ class MLE_Loss_Decoder:
             if detection == 2:  # Qubit lost
                 qubit, round_index = self.measurement_map[i]
                 # Find the lifecycle phase to update
-                for index, lifecycle in enumerate(self.qubit_lifecycles_and_losses[qubit]):
+                for index, lifecycle in enumerate(self.qubit_lifecycles_and_losses[qubit.value]):
                     if lifecycle[0] <= round_index <= lifecycle[1]:
                         lifecycle[2] = True  # Mark as lost
                         # self.qubit_lifecycles_and_losses[qubit][index][2] = True
@@ -559,22 +558,7 @@ class MLE_Loss_Decoder:
         """ given a dictionary of losses, this function generates the circuit while considering the losses.
         """
         # Generate a unique key based on losses_by_instruction_ix and self.Meta_params
-        key = self._generate_unique_key(losses_by_instruction_ix)
-
-        # Check if the circuit for this key has already been generated
-        
-        # full_filename = f'{self.loss_decoder_files_dir}/circuit_{key}.pickle'
-
-        # if os.path.isfile(full_filename): # Load and return the existing dem
-        #     with open(full_filename, 'rb') as file:  # Note the 'rb' mode here
-        #         hyperedges_matrix_dem = pickle.load(file)
-        #         return hyperedges_matrix_dem
-            
-        # else: # generate circuit and dem
-        #     loss_circuit = self.generate_loss_circuit(losses_by_instruction_ix, removing_Pauli_errors=True)
-            
-            
-                    
+        key = self._generate_unique_key(losses_by_instruction_ix) 
 
         if os.path.isfile(full_filename): # Load and return the existing dem
             with open(full_filename, 'rb') as file:  # Note the 'rb' mode here
@@ -588,19 +572,12 @@ class MLE_Loss_Decoder:
             
             # replace final observables with detectors:
             final_loss_circuit = self.observables_to_detectors(loss_circuit)
-            # Old code --> WARNING: we assume that the OBSERVABLES are at the end of the circuit.
-            # observable_instructions_ix = [i for i, instruction in enumerate(loss_circuit) if instruction.name == 'OBSERVABLE_INCLUDE']
-            # extra_num_detectors = len(observable_instructions_ix)
-            # final_loss_circuit = loss_circuit[:-extra_num_detectors].copy()
-            # for obs_ix in observable_instructions_ix:
-            #     instruction = loss_circuit[obs_ix]
-            #     targets = instruction.targets_copy()
-            #     final_loss_circuit.append('DETECTOR', targets)
-            
-            # get the dem:
+
+            # get the dem (with observables on columns):
             dem_heralded_circuit = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)
+            
             # convert the DEM into a matrix and sum up with previous DEMs:
-            hyperedges_matrix_dem = self.convert_dem_into_hyperedges_matrix(dem_heralded_circuit, event_probability=event_probability)
+            hyperedges_matrix_dem = self.convert_dem_into_hyperedges_matrix(dem_heralded_circuit, event_probability=event_probability, observables_converted_to_detectors=True)
             
             if self.printing:
                 print(f"The DEM for the loss circuit with losses {losses_by_instruction_ix} is: \n{dem_heralded_circuit}")
@@ -1036,9 +1013,34 @@ class MLE_Loss_Decoder:
         return binary_matrix, values_list
 
     
-    
-    def from_hyperedges_matrix_into_stim_dem(self, final_hyperedges_matrix):
+    def convert_detectors_back_to_observables(self, dem_hyperedges_matrix):
+        """ 
+        Input:
+        This function takes the hyperedgematrix with rows representing errors and columns representing detectors + observables.
+        It returns:
+        * updated hyperedge matrix without the columns that represented observables
+        * list of lists observables, where for each observable we write the indices of the errors that interact with this observable (the non-zero rows in the relevant row).
         
+        Observables columns are in indices: self.observables_indices
+        """
+        
+        # Step 1 - generate observables_errors_interactions lists: (each element in the upper list is an observable)
+        observables_errors_interactions = []
+        for observable_index in self.observables_indices:
+            # Find the rows where the observable is involved
+            error_indices = dem_hyperedges_matrix[:, observable_index].nonzero()[0]
+            observables_errors_interactions.append(error_indices.tolist())
+        
+        # Step 2 - remove observables from hyperedge matrix
+        mask = np.array([i for i in range(dem_hyperedges_matrix.shape[1]) if i not in self.observables_indices])
+        # Apply the mask to get the updated hyperedge matrix without observables columns
+        dem_hyperedges_matrix_updated = dem_hyperedges_matrix[:, mask]
+    
+        return dem_hyperedges_matrix_updated, observables_errors_interactions
+        
+        
+    def from_hyperedges_matrix_into_stim_dem(self, final_hyperedges_matrix):
+        # Input hyperedges_matrix includes observables as detectors (in columns self.observables_indices). We need to convert them back into observables.
         
         # Step 4: bring back the observables and create a stim.DEM object: 
         final_dem = stim.DetectorErrorModel()
@@ -1057,16 +1059,9 @@ class MLE_Loss_Decoder:
             error_targets = []
             num_detectors = final_hyperedges_matrix.shape[1] - self.extra_num_detectors  # number of detector columns
 
-            # Append detectors
+            # Append detectors and convert detectors to observables:
             for d in non_zero_columns: # detector or observable index, from 0 up to num detectors + observables
-                # old code --> WARNING: here we assume the detectors are at the end of the circuit!
-                # if d < num_detectors:
-                #     error_targets.append(stim.target_relative_detector_id(d))
-                # else:
-                #     # Add observables
-                #     observable_index = d - num_detectors 
-                #     error_targets.append(stim.target_logical_observable_id(observable_index))
-                
+
                 # new code - without assuming observables are at the end of the circuit:
                 if d not in self.observables_indices: # this col is a detector
                     error_targets.append(stim.target_relative_detector_id(d))
@@ -1194,10 +1189,19 @@ class MLE_Loss_Decoder:
         return final_matrix
 
 
-    def convert_dem_into_hyperedges_matrix(self, dem, event_probability):
-        num_detectors = dem.num_detectors
+    def convert_dem_into_hyperedges_matrix(self, dem, event_probability, observables_converted_to_detectors=False):
+        # Output hyperedge matrix have num col = num detectors + num observables
+        # If observables_converted_to_detectors = True: DEM where observables are already converted detectors
+        # Note that observables_errors_interactions will be non trivial only if observables_converted_to_detectors = False
+        
+        num_detectors = dem.num_detectors # includes num_observables because 
+        num_observables = len(self.observables_indices)
+        num_total = num_detectors if observables_converted_to_detectors else num_detectors + num_observables
+
         num_errors = sum(1 for error in dem if str(error)[:5] == 'error' and error.args_copy()[0] != 0)
-        hyperedges_matrix = lil_matrix((num_errors, num_detectors), dtype=float)
+        hyperedges_matrix = lil_matrix((num_errors, num_total), dtype=float)
+
+        observables_errors_interactions = [[] for _ in range(num_observables)]
 
         error_index = 0
         for error in dem:
@@ -1207,13 +1211,17 @@ class MLE_Loss_Decoder:
                 for target in error.targets_copy():
                     if stim.DemTarget.is_relative_detector_id(target):
                         targets.append(target.val)
+                    elif stim.DemTarget.is_logical_observable_id(target):
+                        observable_index = target.val
+                        observables_errors_interactions[observable_index].append(error_index)
                 targets = np.asarray(targets)
-                # hyperedges_matrix[_, targets] = 1
                 hyperedges_matrix[error_index, targets] = probability * event_probability
                 error_index += 1
-                
-        # Convert to csr_matrix for efficiency in subsequent operations
-        return hyperedges_matrix
+        if observables_converted_to_detectors:
+            return hyperedges_matrix
+        
+        else:
+            return hyperedges_matrix, observables_errors_interactions
 
 
     def combine_DEMs_high_order(self, DEMs_list, num_detectors):
@@ -1291,21 +1299,13 @@ class MLE_Loss_Decoder:
         # before generating the DEM, we need to convert the observables into detectors.
         # After generating the DEM, we need to convert it into a sparse matrix.
         
-
-        # replace final observables with detectors:
-        # OLD code --> WARNING: we assume that the OBSERVABLES are at the end of the circuit.
-        # observable_instructions_ix = [i for i, instruction in enumerate(self.circuit) if instruction.name == 'OBSERVABLE_INCLUDE']
-        # circuit_for_Pauli_dem = self.circuit[:-self.extra_num_detectors].copy()
-        # for obs_ix in observable_instructions_ix:
-        #     instruction = self.circuit[obs_ix]
-        #     targets = instruction.targets_copy()
-        #     circuit_for_Pauli_dem.append('DETECTOR', targets)
-            
+        
         circuit_for_Pauli_dem = self.observables_to_detectors(self.circuit.copy())
                         
         Pauli_DEM = circuit_for_Pauli_dem.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
+        
         # Convert the DEM into a matrix:
-        hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, event_probability=1)
+        hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, event_probability=1, observables_converted_to_detectors=True)
 
         self.Pauli_DEM = Pauli_DEM
         self.Pauli_DEM_matrix = hyperedges_matrix_Pauli_DEM

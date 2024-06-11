@@ -384,16 +384,18 @@ class Simulator:
             # Loss decoding - creating DEMs:
             dems_list = []
             probs_lists = []
+            observables_errors_interactions_lists = []
             for shot in range(num_loss_shots):
-                measurement_event = measurement_events[shot][0] # change it to measurements
-                final_dem_hyperedges_matrix, extra_num_detectors = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event)                
+                measurement_event = measurement_events[shot] # change it to measurements
+                final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event) # final_dem_hyperedges_matrix doesn't contain observables, only detectors               
+                observables_errors_interactions_lists.append(observables_errors_interactions)
                 
                 if self.decoder == "MLE":
                     final_dem_hyperedges_matrix, probs_list = MLE_Loss_Decoder_class.convert_hyperedge_matrix_into_binary(hyperedges_matrix = final_dem_hyperedges_matrix)
                     dems_list.append(final_dem_hyperedges_matrix)
                     probs_lists.append(probs_list)
                 else:
-                    final_dem = self.from_hyperedges_matrix_into_stim_dem(final_dem_hyperedges_matrix) # stim format
+                    final_dem = MLE_Loss_Decoder_class.from_hyperedges_matrix_into_stim_dem(final_dem_hyperedges_matrix) # convert into stim format. #TODO: bug - fix it! here final_dem_hyperedges_matrix doesn't contain observables so the DEM will not contain them.
                     dems_list.append(final_dem)
                     
                 if self.printing:
@@ -401,6 +403,7 @@ class Simulator:
                     print(final_dem_hyperedges_matrix)
 
             measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events = measurement_events.astype(np.bool_)
             detection_events, observable_shots = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
             
             # add normalization step of detection events:
@@ -408,7 +411,7 @@ class Simulator:
             
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
-                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events)   
+                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_errors_interactions_lists=observables_errors_interactions_lists)   
                 
             else:
                 predictions = []
@@ -423,6 +426,7 @@ class Simulator:
         
         else: # regular decoding, without delayed erasure decoder
             measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events = measurement_events.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
             
             # add normalization step of detection events:
