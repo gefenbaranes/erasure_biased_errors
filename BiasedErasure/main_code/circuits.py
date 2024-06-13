@@ -13,6 +13,68 @@ from BiasedErasure.main_code.noise_channels import biased_erasure_noise_MBQC
 from BiasedErasure.main_code.LogicalCircuitMBQC import LogicalCircuitMBQC
 from BiasedErasure.main_code.LogicalCircuit import LogicalCircuit 
 
+def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
+    """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
+    assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
+    print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
+    
+    if code == 'Rotated_Surface':
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
+    elif code == 'Surface':
+        logical_qubits = [qec.surface_code.SurfaceCode(d, d) for _ in range(num_logicals)]
+    
+    if atom_array_sim:
+        lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
+                                loss_noise_scale_factor=1, spam_noise_scale_factor=1,
+                                gate_noise_scale_factor=1, idle_noise_scale_factor=1,
+                                atom_array_sim = atom_array_sim)
+    else:
+        lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
+                                loss_noise_scale_factor=1, spam_noise_scale_factor=0,
+                                gate_noise_scale_factor=1, idle_noise_scale_factor=0,
+                                entangling_gate_error_rate=entangling_gate_error_rate, 
+                                entangling_gate_loss_rate=entangling_gate_loss_rate,
+                                erasure_ratio = erasure_ratio,
+                                atom_array_sim = atom_array_sim)
+    
+    if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
+    
+    if logical_basis == 'X':
+        lc.append(qec.surface_code.prepare_plus_no_gates, list(range(0, len(logical_qubits))))
+        if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
+        
+        SWAP_round_index = 0; SWAP_round_type = 'even'; SWAP_round = False
+        for round_ix in range(QEC_cycles):
+            if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
+                SWAP_round = True
+                SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+                SWAP_round_index += 1
+            
+            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, compare_with_previous=True, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type) # append QEC rounds
+            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+        if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
+        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True)
+
+    elif logical_basis == 'Z':
+        lc.append(qec.surface_code.prepare_zero_no_gates, list(range(0, len(logical_qubits))))
+        if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
+        
+        SWAP_round_index = 0; SWAP_round_type = 'none'; SWAP_round = False
+        for round_ix in range(QEC_cycles):
+            if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
+                SWAP_round = True
+                SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+                SWAP_round_index += 1
+        
+            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, compare_with_previous=True, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type) # append QEC rounds
+            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+        if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
+        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True)
+    
+    return lc
+
 
 def memory_experiment_surface(d, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""

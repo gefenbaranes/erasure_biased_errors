@@ -87,12 +87,19 @@ class Simulator:
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_err, self.bias_ratio)
         if self.circuit_type == 'memory':
             if self.architecture == 'CBQC':
-                return memory_experiment_surface(d=d, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
+                return memory_experiment_surface_new(d=d, code=self.code, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
                                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim)
+                
+                # return memory_experiment_surface(d=d, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
+                #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
+                #                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
+                #                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
+                #                                 loss_detection_method = self.loss_detection_method_str, 
+                #                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim)
             elif self.architecture == 'MBQC':
                 return memory_experiment_MBQC(d=d, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
                                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
@@ -373,7 +380,9 @@ class Simulator:
         elif self.loss_detection_method_str == 'FREE':
             MLE_Loss_Decoder_class.circuit = LogicalCircuit
         
-        
+        if self.printing:
+            print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+            
         if 2 in measurement_events and use_loss_decoding:
             loss_sampling = 1 # how many times we will use the same loss sampling result
             num_loss_shots = math.ceil(num_shots / loss_sampling)

@@ -207,7 +207,6 @@ class MLE_Loss_Decoder:
                 print(f"lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
 
             # Step 2 - get all possible loss locations (and save in self.potential_losses_by_instruction_index[(lost_q, round_ix)])
-            # self.get_all_potential_loss_locations_given_heralded_loss()
             self.get_all_potential_loss_locations_given_heralded_loss_new()
 
             # Step 3 - choose a decoder type:
@@ -523,34 +522,6 @@ class MLE_Loss_Decoder:
         experimental_circuit = circuit_before_ix + heralded_circuit_after_ix
         
         
-        # # DEBUG - REMOVE!!!
-        # # replace final observables with detectors:
-        # # WARNING: we assume that the OBSERVABLES are at the end of the circuit.
-        # observable_instructions_ix = [i for i, instruction in enumerate(experimental_circuit) if instruction.name == 'OBSERVABLE_INCLUDE']
-        # final_heralded_circuit = experimental_circuit[:-self.extra_num_detectors].copy()
-        # for obs_ix in observable_instructions_ix:
-        #     instruction = experimental_circuit[obs_ix]
-        #     targets = instruction.targets_copy()
-        #     final_heralded_circuit.append('DETECTOR', targets)
-        # # get the dem:
-        # dem_heralded_circuit = final_heralded_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)
-        # if self.printing:
-        #     print(f"The DEM for the experimental circuit with the loss event of qubits {lost_qubits} in locations {losses_by_instruction_ix.keys()} is: \n{dem_heralded_circuit}")
-        
-        # hyperedges_matrix_dem = self.convert_dem_into_hyperedges_matrix(dem_heralded_circuit, event_probability=1)
-        
-        # # for debugging:
-        # rows_list = []
-        # for row in range(hyperedges_matrix_dem.shape[0]):
-        #     # Find the indices of non-zero elements in this row.
-        #     row_data = hyperedges_matrix_dem.getrow(row).tocoo()
-        #     non_zero_indices = row_data.col.tolist()
-        #     rows_list.append(non_zero_indices)
-        
-        # self.losses_to_detectors.append([losses_by_instruction_ix, rows_list])
-        
-        # # DEBUG - REMOVE!!! 
-        
         return experimental_circuit
         
         
@@ -673,6 +644,7 @@ class MLE_Loss_Decoder:
         # combine into the full dictionary with all num_of_losses dems
         self.circuit_comb_dems.update(circuit_comb_dems)
         
+        
     def preprocess_circuit_comb_batches(self, full_filename, num_of_losses=1, all_potential_loss_qubits_indices=[]):
         # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
         # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
@@ -683,23 +655,23 @@ class MLE_Loss_Decoder:
         os.makedirs(batches_dir, exist_ok=True)  # Ensure the batch directory exists
 
 
-        ### Step 1: get all combinations with num_of_losses losses:
+        # Step 1: Get all combinations with num_of_losses losses
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
         batch_size = max(1, int(total_combinations * 0.05))
-    
-    
-        ### Step 2: process all combinations in batches
+        print(f"For d={self.distance}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
+
+        # Step 2: Process all combinations in batches
         for batch_start in range(0, total_combinations, batch_size):
             batch_end = min(batch_start + batch_size, total_combinations)
-            
             full_filename_batch = f'{batches_dir}/batch_{batch_start}_to_{batch_end}.pickle'
-            # check if this batch was already processed:
+            
+            # Check if this batch was already processed
             if os.path.exists(full_filename_batch):
                 print(f"Batch {batch_start} to {batch_end} already processed. Skipping.")
-                continue # continue to the next batch
+                continue # Continue to the next batch
 
-            circuit_comb_dems = {} # process this batch
+            circuit_comb_dems = {} # Process this batch
             batch_combinations = all_combinations[batch_start:batch_end]
             
             for combination in batch_combinations:
@@ -722,32 +694,44 @@ class MLE_Loss_Decoder:
                     circuit_comb_dems[key] = hyperedges_matrix_dem
 
             # Save the current batch results
-            with open(full_filename_batch, 'wb') as file:
-                pickle.dump((circuit_comb_dems, self.Meta_params), file)
+            try:
+                with open(full_filename_batch, 'wb') as file:
+                    pickle.dump((circuit_comb_dems, self.Meta_params), file)
+            except Exception as e:
+                print(f"Error saving batch {batch_start} to {batch_end}: {e}")
+                continue
 
             # Clear memory after processing and saving each batch
             del circuit_comb_dems, batch_combinations
             print(f"Processed batch {batch_start // batch_size + 1}/{(total_combinations + batch_size - 1) // batch_size + 1}")
 
-
-        ### Step 3: Combine all batch dictionaries into a single dictionary
+        # Step 3: Combine all batch dictionaries into a single dictionary
+        print(f"Now we will combine all batches into one! taking batches in folder {batches_dir}")
         combined_circuit_comb_dems = {}
 
         for batch_file in os.listdir(batches_dir):
             if batch_file.endswith('.pickle'):
-                with open(os.path.join(batches_dir, batch_file), 'rb') as file:
-                    batch_circuit_comb_dems, _ = pickle.load(file)
-                    combined_circuit_comb_dems.update(batch_circuit_comb_dems)
-                # Clear memory after loading and updating the combined dictionary
-                del batch_circuit_comb_dems
+                try:
+                    with open(os.path.join(batches_dir, batch_file), 'rb') as file:
+                        batch_circuit_comb_dems, _ = pickle.load(file)
+                        combined_circuit_comb_dems.update(batch_circuit_comb_dems)
+                except Exception as e:
+                    print(f"Error loading batch file {batch_file}: {e}")
+                    continue
+                finally:
+                    # Clear memory after loading and updating the combined dictionary
+                    del batch_circuit_comb_dems
 
-        ### Step 4: Save the combined dictionary to full_filename
-        with open(full_filename, 'wb') as file:
-            pickle.dump((combined_circuit_comb_dems, self.Meta_params), file)
+        # Step 4: Save the combined dictionary to full_filename
+        try:
+            with open(full_filename, 'wb') as file:
+                pickle.dump((combined_circuit_comb_dems, self.Meta_params), file)
+        except Exception as e:
+            print(f"Error saving combined results to {full_filename}: {e}")
 
         print(f"All batches combined and saved to {full_filename}")
 
-        ### Step 5: Load the combined results into self.circuit_comb_dems
+        # Step 5: Load the combined results into self.circuit_comb_dems
         self.circuit_comb_dems.update(combined_circuit_comb_dems)  # merge
 
         # Clear memory after loading combined results
