@@ -225,8 +225,8 @@ class LogicalCircuit(stim.Circuit):
 
 
         if qec.is_reset(operation.name):
-            noisy_circuit.append('X_ERROR', list(self.entangling_zone),
-                                 [self.reset_error_rate * self.spam_noise_scale_factor])
+            # noisy_circuit.append('X_ERROR', list(self.entangling_zone), [self.reset_error_rate * self.spam_noise_scale_factor])
+            noisy_circuit.append('X_ERROR', list(operation.targets_copy()), [self.reset_error_rate * self.spam_noise_scale_factor]) # GB's new change - only initialized qubits get the error
             qubits = np.setdiff1d(list(self.qubit_indices), list(self.no_noise_zone))
             loss_prob = self.reset_loss_rate * self.loss_noise_scale_factor
             if loss_prob > 0 and add_to_potential_loss:
@@ -540,12 +540,7 @@ class LogicalCircuit(stim.Circuit):
                 circuit.append(name, not_lost_targets, arg)
                 super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
             elif tools.is_single_qubit(str(name)):
-                # Remove lost qubits in the gate
-                not_lost_targets = []
-                for _ in range(len(targets)):
-                    if not (targets[_] in self.lost_qubits):
-                        not_lost_targets.append(targets[_])
-                circuit.append(name, not_lost_targets, arg)
+                circuit.append(name, targets, arg)
                 super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
             elif tools.is_measurement(str(name)):
                 # Reset lost qubits in |1>
@@ -559,9 +554,13 @@ class LogicalCircuit(stim.Circuit):
                 self.lost_qubits = self.lost_qubits - set(lost_targets)
                 circuit.append(name, targets, arg)
                 super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            
+            elif tools.is_reset(str(name)): # GB's addition
+                circuit.append(name, targets, arg)
+                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            
             else:
-                not_lost_targets = [t for t in targets if not (t in self.lost_qubits)]
-                circuit.append(name, not_lost_targets, arg)
+                circuit.append(name, targets, arg)
                 super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
 
     def qubit_index_to_logical_qubit(self, index: int):

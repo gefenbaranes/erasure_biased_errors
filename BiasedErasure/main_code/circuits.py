@@ -37,42 +37,42 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
                                 erasure_ratio = erasure_ratio,
                                 atom_array_sim = atom_array_sim)
     
+    #  initialization step:
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
     
     if logical_basis == 'X':
         lc.append(qec.surface_code.prepare_plus_no_gates, list(range(0, len(logical_qubits))))
-        if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
-        
-        SWAP_round_index = 0; SWAP_round_type = 'even'; SWAP_round = False
-        for round_ix in range(QEC_cycles):
-            if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
-                SWAP_round = True
-                SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                SWAP_round_index += 1
-            
-            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, compare_with_previous=True, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type) # append QEC rounds
-            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
-        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True)
-
+    
     elif logical_basis == 'Z':
         lc.append(qec.surface_code.prepare_zero_no_gates, list(range(0, len(logical_qubits))))
-        if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
         
-        SWAP_round_index = 0; SWAP_round_type = 'none'; SWAP_round = False
-        for round_ix in range(QEC_cycles):
-            if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
-                SWAP_round = True
-                SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                SWAP_round_index += 1
+    if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
         
-            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, compare_with_previous=True, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type) # append QEC rounds
-            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
-        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True)
+        
+    # QEC rounds:
+    SWAP_round_index = 0; SWAP_round_type = 'even'; SWAP_round = False
+    for round_ix in range(QEC_cycles):
+        if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
+            SWAP_round = True
+            SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+            SWAP_round_index += 1
+        
+        put_detectors = False if round_ix == 0 else True
+        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+        lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors) # append QEC rounds
+        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
     
+    
+    # logical measurement step:
+    if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
+    
+    if logical_basis == 'X':
+        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True)
+    
+    elif logical_basis == 'Z':
+        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True)
+        
+
     return lc
 
 

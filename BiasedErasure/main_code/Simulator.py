@@ -413,7 +413,7 @@ class Simulator:
 
             measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
             measurement_events = measurement_events.astype(np.bool_)
-            detection_events, observable_shots = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
+            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
             
             # add normalization step of detection events:
             detection_events = detection_events * detection_events_signs
@@ -429,9 +429,15 @@ class Simulator:
                     matching = pymatching.Matching.from_detector_error_model(detector_error_model)
                     prediction = matching.decode_batch(detection_event)
                     predictions.append(prediction[0][0])
-                
+            
+            num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            if self.printing:
+                print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             predictions_bool = predictions.astype(bool).squeeze()
             return predictions_bool, dems_list
+        
+        
+        
         
         else: # regular decoding, without delayed erasure decoder
             measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
@@ -456,7 +462,9 @@ class Simulator:
                     decoder='pymatching',
                 )
 
-            # num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            if self.printing:
+                print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             predictions_bool = predictions.astype(bool).squeeze()
             return predictions_bool, detector_error_model
         
