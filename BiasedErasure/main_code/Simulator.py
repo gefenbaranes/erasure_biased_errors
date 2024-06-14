@@ -420,6 +420,17 @@ class Simulator:
             
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
+                
+                # convert to dense
+                from scipy.sparse import lil_matrix
+                def convert_to_dense(matrix):
+                    if isinstance(matrix, lil_matrix):
+                        return matrix.toarray()
+                    return matrix
+
+                dense_dems_list = [convert_to_dense(matrix) for matrix in dems_list]
+
+
                 predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_errors_interactions_lists=observables_errors_interactions_lists)   
                 # save an example for Maddie:
                 # full_filename = f"{self.output_dir}/example_for_maddie.pickle"
