@@ -1,4 +1,5 @@
 LICENSE
+MANIFEST.in
 README.md
 setup.py
 BiasedErasure/__init__.py
@@ -51,6 +52,8 @@ dist/BiasedErasure-0.1.0-py3-none-any.whl
 dist/BiasedErasure-0.1.0.tar.gz
 dist/BiasedErasure-0.1.1-py3-none-any.whl
 dist/BiasedErasure-0.1.1.tar.gz
+dist/BiasedErasure-0.1.2-py3-none-any.whl
+dist/BiasedErasure-0.1.2.tar.gz
 examples/GHZ_only_bias.ipynb
 examples/GHZ_with_loss.ipynb
 examples/Run_simulation.ipynb
