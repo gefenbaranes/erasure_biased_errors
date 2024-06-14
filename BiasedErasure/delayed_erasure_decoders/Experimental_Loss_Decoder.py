@@ -21,7 +21,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, distance: int, output_dir: str, mea
         """
         num_shots = measurement_events.shape[0]
         
-        
+        print("HIU!")
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)

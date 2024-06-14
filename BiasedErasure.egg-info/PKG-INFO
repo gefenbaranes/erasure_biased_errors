@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: BiasedErasure
-Version: 0.1.2
+Version: 0.1.3
 Summary: Simulate logical circuits with loss errors with efficient smart decoding
 Author: Gefen Baranes and Pablo Bonilla
 Author-email: gefenbaranes123@gmail.com
@@ -10,6 +10,6 @@ License-File: LICENSE
 # BiasedErasure
 
 
-To install the package so that you can call it from the command line, run either python setup.py develop or python setup.py install from the erasure_biased_errors folder. The former option will reflect local changes that you make to the packages when you run it from the command line. The latter will always call the current version of the code without any local changes.
+To install the package so that you can call it from the command line, run either "pip install -e ." (developer instillation) or "pip install ." (regular) from the erasure_biased_errors folder. The former option will reflect local changes that you make to the packages when you run it from the command line. The latter will always call the current version of the code without any local changes.
 
 Important! To use this package, you must you the "loss_decoder" branch in qec package.

@@ -985,16 +985,17 @@ class MLE_Loss_Decoder:
     def convert_hyperedge_matrix_into_binary(self, hyperedges_matrix):
         # Convert to binary matrix and extract row-wise values
         binary_matrix = hyperedges_matrix.copy()
-        values_list = []
+        probs_lists = []
 
         for i in range(hyperedges_matrix.shape[0]):
             row_data = hyperedges_matrix.getrow(i)
             if row_data.nnz > 0:  # if the row is not entirely zero
-                values_list.append(row_data.data[0])  # Collect the non-zero values before changing them
+                probs_lists.append(row_data.data[0][0])  # Collect the non-zero values before changing them
                 binary_matrix.rows[i] = row_data.rows[0]
                 binary_matrix.data[i] = np.ones_like(row_data.data[0])
         
-        return binary_matrix, values_list
+        # TODO: I want probs_list to be only 1 value.. because all the values are the same anyway..
+        return binary_matrix, probs_lists
 
     
     def convert_detectors_back_to_observables(self, dem_hyperedges_matrix):

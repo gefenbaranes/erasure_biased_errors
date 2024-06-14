@@ -421,7 +421,12 @@ class Simulator:
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
                 predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_errors_interactions_lists=observables_errors_interactions_lists)   
-                
+                # save an example for Maddie:
+                # full_filename = f"{self.output_dir}/example_for_maddie.pickle"
+                # with open(full_filename, 'wb') as file:
+                #     pickle.dump((dems_list, probs_lists, detection_events, observables_errors_interactions_lists), file)
+            
+            
             else:
                 predictions = []
                 for (d, detection_event) in enumerate(detection_events):
