@@ -1,11 +1,11 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 setup(
     name='BiasedErasure',
-    version='0.1.0',
+    version='0.1.2',
     author='Gefen Baranes and Pablo Bonilla',
     author_email='gefenbaranes123@gmail.com',
-    packages=['BiasedErasure'],
+    packages=find_packages(include=['BiasedErasure', 'BiasedErasure.*']),
     license='LICENSE',
     description='Simulate logical circuits with loss errors with efficient smart decoding',
     long_description=open('README.md').read(),
@@ -15,5 +15,6 @@ setup(
         'matplotlib',
         'stim>=1.11.0',
         'pymatching>=2.1.0',
+        'sinter'
     ],
 )
