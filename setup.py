@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='BiasedErasure',
-    version='0.1.3',
+    version='0.1.4',
     author='Gefen Baranes and Pablo Bonilla',
     author_email='gefenbaranes123@gmail.com',
     packages=find_packages(include=['BiasedErasure', 'BiasedErasure.*']),
