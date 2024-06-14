@@ -418,20 +418,16 @@ class Simulator:
             # add normalization step of detection events:
             detection_events = detection_events * detection_events_signs
             
+            
+            # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! START
+            sampler = MLE_Loss_Decoder_class.circuit.compile_detector_sampler()
+            detection_events, observable_flips = sampler.sample(num_loss_shots, separate_observables=True)
+            # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! END
+            
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
                 
-                # convert to dense
-                from scipy.sparse import lil_matrix
-                def convert_to_dense(matrix):
-                    if isinstance(matrix, lil_matrix):
-                        return matrix.toarray()
-                    return matrix
-
-                dense_dems_list = [convert_to_dense(matrix) for matrix in dems_list]
-
-
-                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_errors_interactions_lists=observables_errors_interactions_lists)   
+                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
                 # save an example for Maddie:
                 # full_filename = f"{self.output_dir}/example_for_maddie.pickle"
                 # with open(full_filename, 'wb') as file:
@@ -449,8 +445,8 @@ class Simulator:
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
                 print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
-            predictions_bool = predictions.astype(bool).squeeze()
-            return predictions_bool, dems_list
+            # predictions_bool = predictions.astype(bool).squeeze()
+            return predictions, observable_flips, dems_list
         
         
         
@@ -481,8 +477,8 @@ class Simulator:
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
                 print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
-            predictions_bool = predictions.astype(bool).squeeze()
-            return predictions_bool, detector_error_model
+            # predictions_bool = predictions.astype(bool).squeeze()
+            return predictions, observable_flips, detector_error_model
         
     
     

@@ -993,8 +993,8 @@ class MLE_Loss_Decoder:
                 probs_lists.append(row_data.data[0][0])  # Collect the non-zero values before changing them
                 binary_matrix.rows[i] = row_data.rows[0]
                 binary_matrix.data[i] = np.ones_like(row_data.data[0])
-            else:
-                probs_lists.append(0)
+            # else:
+            #     probs_lists.append(0)
         
         return binary_matrix, probs_lists
 

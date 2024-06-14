@@ -21,7 +21,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, distance: int, output_dir: str, mea
         """
         num_shots = measurement_events.shape[0]
         
-        print("HIU!")
+
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
@@ -31,7 +31,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, distance: int, output_dir: str, mea
                                 cycles = cycles, output_dir=output_dir, save_filename=None)
         
         # Step 1 - decode:
-        predictions_bool, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, distance = distance, measurement_events = measurement_events, detection_events_signs=detection_events_signs, use_loss_decoding=use_loss_decoding)
+        predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, distance = distance, measurement_events = measurement_events, detection_events_signs=detection_events_signs, use_loss_decoding=use_loss_decoding)
         
         
-        return predictions_bool, dems_list
+        return predictions, observable_flips, dems_list
