@@ -419,10 +419,10 @@ class Simulator:
             detection_events = detection_events * detection_events_signs
             
             
-            # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! START
-            sampler = MLE_Loss_Decoder_class.circuit.compile_detector_sampler()
-            detection_events, observable_flips = sampler.sample(num_loss_shots, separate_observables=True)
-            # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! END
+            # # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! START
+            # sampler = MLE_Loss_Decoder_class.circuit.compile_detector_sampler()
+            # detection_events, observable_flips = sampler.sample(num_loss_shots, separate_observables=True)
+            # # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! END
             
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
