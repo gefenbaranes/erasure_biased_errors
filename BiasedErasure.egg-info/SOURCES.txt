@@ -69,6 +69,8 @@ _build/lib/BiasedErasure/main_code/xzzx_cluster.py
 _build/lib/BiasedErasure/main_code/xzzx_cluster_noisy.py
 _dist/BiasedErasure-0.1.3-py3-none-any.whl
 _dist/BiasedErasure-0.1.3.tar.gz
+dist/BiasedErasure-0.1.4-py3-none-any.whl
+dist/BiasedErasure-0.1.4.tar.gz
 examples/GHZ_only_bias.ipynb
 examples/GHZ_with_loss.ipynb
 examples/Run_simulation.ipynb

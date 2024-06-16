@@ -59,7 +59,7 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
         
         put_detectors = False if round_ix == 0 else True
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors) # append QEC rounds
+        lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis) # append QEC rounds
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
     
     
