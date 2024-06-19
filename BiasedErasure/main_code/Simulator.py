@@ -290,7 +290,7 @@ class Simulator:
             if self.decoder == "MLE":
                 
                 detector_shots = np.array(detection_events_list)
-                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, detector_shots = detector_shots)   
+                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_theory(dems_list=dems_list, detector_shots = detector_shots)   
                 if self.printing:
                     end_time = time.time()
                     print(f"Gurobi correlated mle decoding for all shots took {end_time - start_time} sec")
@@ -416,7 +416,11 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
             
             # add normalization step of detection events:
-            detection_events = detection_events * detection_events_signs
+            # detection_events = detection_events * detection_events_signs
+            detection_events_int = detection_events.astype(np.int32)
+            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            detection_events = detection_events_flipped.astype(np.bool_)
+            
             
             
             # # # FOR DEBUGGING ONLY! Sample MEASUREMENTS from experimental_circuit - DELETE!! START
@@ -427,7 +431,7 @@ class Simulator:
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
                 
-                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
+                predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_fast(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
                 # save an example for Maddie:
                 # full_filename = f"{self.output_dir}/example_for_maddie.pickle"
                 # with open(full_filename, 'wb') as file:
@@ -458,9 +462,8 @@ class Simulator:
             
             # add normalization step of detection events:
             detection_events_int = detection_events.astype(np.int32)
-            detection_events_flipped = np.where(detection_events_signs == -1, ~detection_events_int, detection_events_int)
+            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
             detection_events = detection_events_flipped.astype(np.bool_)
-
             
             
             if self.decoder == "MLE":

@@ -1043,7 +1043,7 @@ class MLE_Loss_Decoder:
 
             # Construct the error command by specifying detector and observable targets
             error_targets = []
-            num_detectors = final_hyperedges_matrix.shape[1] - self.extra_num_detectors  # number of detector columns
+            # num_detectors = final_hyperedges_matrix.shape[1] - self.extra_num_detectors  # number of detector columns
 
             # Append detectors and convert detectors to observables:
             for d in non_zero_columns: # detector or observable index, from 0 up to num detectors + observables
