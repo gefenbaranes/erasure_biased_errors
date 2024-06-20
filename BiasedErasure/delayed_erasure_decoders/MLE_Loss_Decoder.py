@@ -36,6 +36,7 @@ class MLE_Loss_Decoder:
         # self.Pauli_DEM = None # detector error model for only Pauli errors
         self.real_losses_by_instruction_ix = {}
         self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/d_{distance}__c_{cycles}"
+        print(self.loss_decoder_files_dir)
         self.measurement_map = {}
         self.decoder_type = Meta_params['loss_decoder']
         self.loss_detection_method_str = loss_detection_method_str
@@ -69,10 +70,19 @@ class MLE_Loss_Decoder:
         return sha256(data_str.encode()).hexdigest()
     
     def create_loss_file_name(self, Meta_params, bloch_point_params={}):
-        return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}logicals__{Meta_params['logical_basis']}__{Meta_params['bias_preserving_gates']}__{Meta_params['noise']}__{Meta_params['is_erasure_biased']}__LD_freq_{Meta_params['LD_freq']}__SSR_{Meta_params['SSR']}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
+        if type(Meta_params['ordering']) is list:
+            ordering_string = "_".join(Meta_params['ordering'])
 
+            ### Need to use shorter notation for the ordering string otherwise filename too long
+            orderings_list = ['fowler','Ztopleft','bad','Zbottomleft','Ztopright','Ntopleft','Nbottomleft','Ntopright']
+            replacement_list = ['f', 'Z', 'Z','Zv','Zh','N','Nv','Nh']
+            for ordering,replacement in zip(orderings_list,replacement_list):
+                ordering_string = ordering_string.replace(ordering,replacement)
+            return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}"
+        else:
+            return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
 
-
+ 
     def initialize_loss_decoder(self, **kargs):
         self.set_up_Pauli_DEM()
         self.rounds_by_ix = self.split_stim_circuit_into_rounds()
@@ -133,7 +143,6 @@ class MLE_Loss_Decoder:
                         all_potential_loss_qubits_indices = self.get_all_potential_loss_qubits()
                         self.preprocess_circuit_comb(full_filename = full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
 
-
     
     def decode_loss_MLE(self, loss_detection_events):
         """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
@@ -192,17 +201,17 @@ class MLE_Loss_Decoder:
     
     
     def generate_dem_loss_mle_experiment(self, measurement_event):
-        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
+        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 
+        1. experimental measurement circuit. 2. Theory decoding circuit. """
         
         # updated before for all shots together: self.qubit_lifecycles_and_losses, self.rounds_by_ix, self.measurement_map
         
         shot_had_a_loss = 2 in measurement_event
-
         if shot_had_a_loss:
             # Step 1 - find out which qubit was lost in which round:
-            self.qubit_lifecycles_and_losses = self.qubit_lifecycles_and_losses_init.copy() # init self.qubit_lifecycles_and_losses for this shot
+            # changed to deepcopy by SG on 2024/06/20
+            self.qubit_lifecycles_and_losses = copy.deepcopy(self.qubit_lifecycles_and_losses_init)#.copy() # init self.qubit_lifecycles_and_losses for this shot
             self.update_lifecycle_from_detections(detection_event=measurement_event) # update self.qubit_lifecycles_and_losses according to measurement_events
-            
             if self.printing:
                 print(f"lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
 
@@ -741,7 +750,8 @@ class MLE_Loss_Decoder:
         
         
     def preprocess_circuit(self, full_filename):
-        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
+        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels.
+        # Each channel corresponds to a qubit lifetime and contains all potential loss places.
         # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
         if self.printing:
             print("Preprocessing all loss circuits, one time only and it will be saved for next times!")
@@ -993,8 +1003,9 @@ class MLE_Loss_Decoder:
                 probs_lists.append(row_data.data[0][0])  # Collect the non-zero values before changing them
                 binary_matrix.rows[i] = row_data.rows[0]
                 binary_matrix.data[i] = np.ones_like(row_data.data[0])
-            # else:
-            #     probs_lists.append(0)
+            else:
+                # print(f"Row is zero. Row {i}")
+                probs_lists.append(1e-20)
         
         return binary_matrix, probs_lists
 

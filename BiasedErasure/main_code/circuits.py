@@ -18,6 +18,18 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
     
+    ### Added by SG to allow different orderings for different rounds
+    if (type(ordering) is list) or (type(ordering) is np.ndarray):
+        if len(ordering) != QEC_cycles:
+            ordering = [ordering[0]]*QEC_cycles
+            print(f"Incorrect number of orderings given. Defaulting to the first value: {ordering}")
+        else:
+            print(f"Using orderings: {ordering}")
+    else:
+        ordering = [ordering]*QEC_cycles
+        print(f"Using orderings: {ordering}")
+    ####
+
     if code == 'Rotated_Surface':
         logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
     elif code == 'Surface':
@@ -59,7 +71,8 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
         
         put_detectors = False if round_ix == 0 else True
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis) # append QEC rounds
+        # lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis) # append QEC rounds
+        lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis) # append QEC rounds
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
     
     
@@ -72,7 +85,6 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
     elif logical_basis == 'Z':
         lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True)
         
-
     return lc
 
 
