@@ -73,35 +73,35 @@ class Simulator:
                 return job_id
         return None  # or raise an error if the job ID is critical
 
-    def generate_unique_key(self):
-        # Convert the data to a JSON string
-        data_str = json.dumps({
-            'meta_params': self.Meta_params,
-            'distance': self.distance
-        }, sort_keys=True)
-        # Use SHA256 to generate a unique hash of the data
-        return sha256(data_str.encode()).hexdigest()
+    # def generate_unique_key(self):
+    #     # Convert the data to a JSON string
+    #     data_str = json.dumps({
+    #         'meta_params': self.Meta_params,
+    #         'distance': self.distance
+    #     }, sort_keys=True)
+    #     # Use SHA256 to generate a unique hash of the data
+    #     return sha256(data_str.encode()).hexdigest()
     
 
-    def generate_circuit(self, d, cycles, phys_err):
+    def generate_circuit(self, dx, dy, cycles, phys_err):
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_err, self.bias_ratio)
         if self.circuit_type == 'memory':
             if self.architecture == 'CBQC':
-                return memory_experiment_surface_new(d=d, code=self.code, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
+                return memory_experiment_surface_new(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
                                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim)
                 
-                # return memory_experiment_surface(d=d, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
+                # return memory_experiment_surface(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
                 #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
                 #                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                 #                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                 #                                 loss_detection_method = self.loss_detection_method_str, 
                 #                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim)
             elif self.architecture == 'MBQC':
-                return memory_experiment_MBQC(d=d, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
+                return memory_experiment_MBQC(dx=dx, dy=dy, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
                                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
                                                 logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, atom_array_sim=self.atom_array_sim)
@@ -115,19 +115,19 @@ class Simulator:
                 order_2.append((i - 1, i))
             chosen_order = order_1 if self.circuit_type.endswith("1") else order_2
             if self.circuit_type in ['GHZ_all_o1', 'GHZ_all_o2']:
-                return GHZ_experiment_Surface(d=d, order=chosen_order, num_logicals=self.num_logicals, code=self.code, QEC_cycles=cycles, 
+                return GHZ_experiment_Surface(dx=dx, dy=dy, order=chosen_order, num_logicals=self.num_logicals, code=self.code, QEC_cycles=cycles, 
                                             entangling_gate_error_rate=entangling_gate_error_rate, entangling_gate_loss_rate=entangling_gate_loss_rate, 
                                             erasure_ratio = self.erasure_ratio,
                                             logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates, 
                                             loss_detection_on_all_qubits=True, atom_array_sim=self.atom_array_sim)
             elif self.circuit_type in ['GHZ_save_o1', 'GHZ_save_o2']:
-                return GHZ_experiment_Surface(d=d, order=chosen_order, num_logicals=self.num_logicals, code=self.code, QEC_cycles=cycles, 
+                return GHZ_experiment_Surface(dx=dx, dy=dy, order=chosen_order, num_logicals=self.num_logicals, code=self.code, QEC_cycles=cycles, 
                                             entangling_gate_error_rate=entangling_gate_error_rate, entangling_gate_loss_rate=entangling_gate_loss_rate, 
                                             erasure_ratio = self.erasure_ratio,
                                             logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates, 
                                             loss_detection_on_all_qubits=False, atom_array_sim=self.atom_array_sim)
         elif self.circuit_type == 'Steane_QEC':
-            return Steane_QEC_circuit(d=d, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles-1,
+            return Steane_QEC_circuit(dx=dx, dy=dy, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles-1,
                                         entangling_gate_error_rate=entangling_gate_error_rate, entangling_gate_loss_rate=entangling_gate_loss_rate,
                                         erasure_ratio=self.erasure_ratio,
                                         logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates,
@@ -141,13 +141,13 @@ class Simulator:
     def simulate(self, distances, num_shots):
         f = open(f'{self.output_dir}/{self.save_filename}.txt', "a")
         
-        for d in distances:
-            cycles = d if self.cycles == None else self.cycles
+        for (dx, dy) in distances:
+            cycles = min(dx, dy) if self.cycles == None else self.cycles
                         
             for phys_err in self.phys_err_vec:
                 start_time = time.time()
                 
-                LogicalCircuit = self.generate_circuit(d=d, cycles=cycles, phys_err=phys_err)
+                LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=cycles, phys_err=phys_err)
                 if self.printing:
                     print(f"\nCircuit after noise:\n{LogicalCircuit} \n")
                     print(f"potential lost qubits: {LogicalCircuit.potential_lost_qubits} \n with loss probabilities: {LogicalCircuit.loss_probabilities}")
@@ -155,10 +155,10 @@ class Simulator:
                 
                 if self.circuit_type == 'Steane_QEC':
                     ValueError (self.num_logicals == 3)
-                    corrections, observables, probabilities1, probabilities2 = self.count_logical_errors_preselection(num_shots=num_shots, distance=d, phys_error=phys_err, cycles=cycles)
+                    corrections, observables, probabilities1, probabilities2 = self.count_logical_errors_preselection(num_shots=num_shots, dx=dx, dy=dy, phys_error=phys_err, cycles=cycles)
                     
                     job_id = self.get_job_id()
-                    full_filename = f'{self.output_dir}/{self.save_filename}/d{d}__c{cycles}__p{phys_err}__Steane_QEC_results.pickle'
+                    full_filename = f'{self.output_dir}/{self.save_filename}/dx{dx}__dy{dy}__c{cycles}__p{phys_err}__Steane_QEC_results.pickle'
 
                     # Create folder if it doesn't exist.
                     folder_path = f'{self.output_dir}/{self.save_filename}'
@@ -173,18 +173,18 @@ class Simulator:
                     with open(full_filename, 'ab') as file:
                         pickle.dump(data_to_append, file)
                         
-                    f.write(f'{d} {phys_err} {cycles} {job_id} {num_shots} {time.time()-start_time}\n')
+                    f.write(f'{dx} {dy} {phys_err} {cycles} {job_id} {num_shots} {time.time()-start_time}\n')
                     
                     
                 else:
-                    num_errors_sampled, num_shots = self.count_logical_errors(LogicalCircuit=LogicalCircuit, num_shots=num_shots, distance=d, phys_error=phys_err, cycles=cycles)
-                    print(f"for d = {d}, {cycles} cycles, physical error rate = {phys_err}, {num_shots} shots, we had {num_errors_sampled} errors (logical error = {(num_errors_sampled/num_shots):.1e})")
-                    f.write(f'{d} {phys_err} {num_errors_sampled} {num_shots} {time.time()-start_time}\n')
+                    num_errors_sampled, num_shots = self.count_logical_errors(LogicalCircuit=LogicalCircuit, num_shots=num_shots, dx=dx, dy=dy, phys_error=phys_err, cycles=cycles)
+                    print(f"for dx = {dx}, dy = {dy}, {cycles} cycles, physical error rate = {phys_err}, {num_shots} shots, we had {num_errors_sampled} errors (logical error = {(num_errors_sampled/num_shots):.1e})")
+                    f.write(f'{dx} {dy} {phys_err} {num_errors_sampled} {num_shots} {time.time()-start_time}\n')
                     
         f.close()
 
     
-    def count_logical_errors(self, LogicalCircuit, num_shots: int, distance=None, phys_error=0, debugging=False, cycles=None):
+    def count_logical_errors(self, LogicalCircuit, num_shots: int, dx=None, dy=None, phys_error=0, debugging=False, cycles=None):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         There are 2 options:
@@ -199,7 +199,7 @@ class Simulator:
 
         if self.architecture == "MBQC":
             xzzx_instance = XZZX()
-            data_qubits, ancilla_qubits = xzzx_instance.get_data_ancilla_indices(dx=distance, dy=distance, cycles=cycles, architecture="MBQC")
+            data_qubits, ancilla_qubits = xzzx_instance.get_data_ancilla_indices(dx=dx, dy=dy, cycles=cycles, architecture="MBQC")
         else:
             ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
             data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
@@ -213,12 +213,13 @@ class Simulator:
         # LogicalCircuit.logical_qubits[0].visualize_code()
         # print(LogicalCircuit.loss_probabilities)
         loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, distance=distance, erasure_ratio = self.erasure_ratio, 
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
                                                                     phys_error = phys_error, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                                     SSR=self.SSR, cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
         
         
-        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, distance = distance, loss_detection_method_str=self.loss_detection_method_str,
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params,
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                 cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq, 
                                                 first_comb_weight=self.first_comb_weight,
@@ -337,11 +338,11 @@ class Simulator:
     
     
     
-    def count_logical_errors_experiment(self, num_shots: int, distance: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True):
+    def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
-        Input: Meta_params, distance, num shots, experimental data: detector shots.
+        Input: Meta_params, dx, dy, num shots, experimental data: detector shots.
         Output: final DEM, corrections, num errors.
         
         Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': 'X', 'bias_preserving_gates': 'False', 
@@ -352,7 +353,7 @@ class Simulator:
         """
         
         # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(d=distance, cycles=self.cycles, phys_err=None)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
@@ -360,12 +361,13 @@ class Simulator:
 
         # LogicalCircuit.logical_qubits[0].visualize_code()
         loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, distance=distance, erasure_ratio = self.erasure_ratio, 
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
                                                                     phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                                     SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
         
         
-        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, distance = distance, loss_detection_method_str=self.loss_detection_method_str,
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                 cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
                                                 output_dir = self.output_dir, decoder_type=self.loss_decoder_type)
@@ -450,7 +452,7 @@ class Simulator:
             
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
-                print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+                print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             # predictions_bool = predictions.astype(bool).squeeze()
             return predictions, observable_flips, dems_list
         
@@ -479,101 +481,22 @@ class Simulator:
 
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
-                print(f"for d = {distance}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+                print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             # predictions_bool = predictions.astype(bool).squeeze()
             return predictions, observable_flips, detector_error_model
         
-    
-    
-    def count_logical_errors_preselection_old(self, num_shots: int, distance=None, phys_error=0, debugging=False, cycles=None):
+
+
+    def count_logical_errors_preselection(self, num_shots: int, dx=None, dy=None, phys_error=0, debugging=False, cycles=None):
         decoder_type = 'independent'
-        d = distance
-
-        entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_error, self.bias_ratio, self.erasure_ratio)
-        def steane(d, ancilla1_for_preselection=False, ancilla2_for_preselection=False):
-            return Steane_QEC_circuit(d=d, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate,
-                                    entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio=self.erasure_ratio, logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates,
-                                    loss_detection_on_all_qubits=True, atom_array_sim=self.atom_array_sim, ancilla1_for_preselection=ancilla1_for_preselection, ancilla2_for_preselection=ancilla2_for_preselection)
-
-        lc = steane(d)
-        
-        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in lc.logical_qubits[i].measure_qubits]
-        data_qubits = [qubit for i in range(self.num_logicals) for qubit in lc.logical_qubits[i].data_qubits]
-        
-        loss_sampling = 1 if self.erasure_ratio > 0 else  num_shots # how many times we will use the same loss sampling result
-        num_loss_shots = math.ceil(num_shots / loss_sampling)
-        num_shots = num_loss_shots * loss_sampling
-        loss_detection_events_all_shots = np.random.rand(num_loss_shots, len(lc.potential_lost_qubits)) < lc.loss_probabilities
-
-        
-        # get SWAP circuit for each circuit ('regular','1','2'):
-        loss_detection_class = self.heralded_circuit(circuit=lc, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, distance=distance, erasure_ratio = self.erasure_ratio, 
-                                                                    phys_error = phys_error, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                                    SSR=self.SSR, cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
-        SWAP_circuit_regular = loss_detection_class.transfer_circuit_into_SWAP_circuit(lc)
-
-            
-        lc_for_preselection1 = steane(d, ancilla1_for_preselection=True)
-        loss_detection_class.logical_circuit = lc_for_preselection1
-        SWAP_circuit_preselection1 = loss_detection_class.transfer_circuit_into_SWAP_circuit(lc_for_preselection1)
-
-        lc_for_preselection2 = steane(d, ancilla2_for_preselection=True)
-        loss_detection_class.logical_circuit = lc_for_preselection2
-        SWAP_circuit_preselection2 = loss_detection_class.transfer_circuit_into_SWAP_circuit(lc_for_preselection2)
-
-
-        # get DEMs for each circuit:
-        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, distance = distance, loss_detection_method_str=self.loss_detection_method_str,
-                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq, 
-                                                first_comb_weight=self.first_comb_weight,
-                                                output_dir = self.output_dir, decoder_type = decoder_type)
-        #MLE_Loss_Decoder_class.initialize_loss_decoder()
-        SWAP_circuits = {'regular': SWAP_circuit_regular, '1': SWAP_circuit_preselection1, '2': SWAP_circuit_preselection2}
-        #DEMs = {'regular': [], '1': [], '2': []}
-
-        corrections = []
-        observables = []
-        probabilities1 = np.zeros((0, 2))
-        probabilities2 = np.zeros((0, 2))
-        for circuit_name in ['regular','1','2']:
-            print(circuit_name)
-            MLE_Loss_Decoder_class.circuit = SWAP_circuits[circuit_name]
-            MLE_Loss_Decoder_class.initialize_loss_decoder()
-            for shot in range(num_loss_shots):
-                loss_detection_events = loss_detection_events_all_shots[shot]
-                experimental_circuit, dem = MLE_Loss_Decoder_class.decode_loss_MLE(loss_detection_events)
-                if circuit_name == 'regular':
-                    # Sample MEASUREMENTS from experimental_circuit
-                    sampler = experimental_circuit.compile_detector_sampler()
-                    detection_events, observable_flips = sampler.sample(loss_sampling, separate_observables=True)
-                    observables.extend(observable_flips)
-                    corrections.extend(qec.correlated_decoders.mle.decode_gurobi_with_dem(dem, detection_events))
-                elif circuit_name == '1':
-                    _, prob1 = qec.correlated_decoders.mle_sliding_scale.sliding_scale(dem, detection_events[:, :dem.num_detectors])
-                    probabilities1 = np.concatenate((probabilities1, prob1), axis=0)
-                elif circuit_name == '2':
-                    _, prob2 = qec.correlated_decoders.mle_sliding_scale.sliding_scale(dem, detection_events[:, :dem.num_detectors])
-                    probabilities2 = np.concatenate((probabilities2, prob2), axis=0)
-                else:
-                    assert True is False
-
-            
-        return corrections, observables, probabilities1, probabilities2
-
-
-    def count_logical_errors_preselection(self, num_shots: int, distance=None, phys_error=0, debugging=False, cycles=None):
-        decoder_type = 'independent'
-        d = distance
 
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_error, self.bias_ratio)
-        def steane(d, ancilla1_for_preselection=False, ancilla2_for_preselection=False):
-            return Steane_QEC_circuit(d=d, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate,
+        def steane(dx, dy, ancilla1_for_preselection=False, ancilla2_for_preselection=False):
+            return Steane_QEC_circuit(dx=dx, dy=dy, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate,
                                     entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio=self.erasure_ratio, logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates,
                                     loss_detection_on_all_qubits=True, atom_array_sim=self.atom_array_sim, ancilla1_for_preselection=ancilla1_for_preselection, ancilla2_for_preselection=ancilla2_for_preselection)
 
-        lc = steane(d)
+        lc = steane(dx, dy)
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in lc.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in lc.logical_qubits[i].data_qubits]
@@ -586,7 +509,7 @@ class Simulator:
         
         # get SWAP circuit for each circuit ('regular','1','2'):
         loss_detection_class = self.heralded_circuit(circuit=lc, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, distance=distance, erasure_ratio = self.erasure_ratio, 
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
                                                                     phys_error = phys_error, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                                     SSR=self.SSR, cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
         if self.loss_detection_method_str == 'SWAP':
@@ -594,14 +517,14 @@ class Simulator:
         else:
             SWAP_circuit_regular = lc
             
-        lc_for_preselection1 = steane(d, ancilla1_for_preselection=True)
+        lc_for_preselection1 = steane(dx, dy, ancilla1_for_preselection=True)
         loss_detection_class.logical_circuit = lc_for_preselection1
         if self.loss_detection_method_str == 'SWAP':
             SWAP_circuit_preselection1 = loss_detection_class.transfer_circuit_into_SWAP_circuit(lc_for_preselection1)
         else:
             SWAP_circuit_preselection1 = lc_for_preselection1
 
-        lc_for_preselection2 = steane(d, ancilla2_for_preselection=True)
+        lc_for_preselection2 = steane(dx, dy, ancilla2_for_preselection=True)
         loss_detection_class.logical_circuit = lc_for_preselection2
         if self.loss_detection_method_str == 'SWAP':
             SWAP_circuit_preselection2 = loss_detection_class.transfer_circuit_into_SWAP_circuit(lc_for_preselection2)
@@ -609,7 +532,8 @@ class Simulator:
             SWAP_circuit_preselection2 = lc_for_preselection2
 
         # get DEMs for each circuit:
-        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, distance = distance, loss_detection_method_str=self.loss_detection_method_str,
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                 cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq, 
                                                 first_comb_weight=self.first_comb_weight,

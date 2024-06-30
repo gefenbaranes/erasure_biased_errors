@@ -13,7 +13,7 @@ from BiasedErasure.main_code.noise_channels import biased_erasure_noise_MBQC
 from BiasedErasure.main_code.LogicalCircuitMBQC import LogicalCircuitMBQC
 from BiasedErasure.main_code.LogicalCircuit import LogicalCircuit 
 
-def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
+def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
@@ -31,9 +31,9 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
     ####
 
     if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
     elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
@@ -88,15 +88,15 @@ def memory_experiment_surface_new(d, code, QEC_cycles, entangling_gate_error_rat
     return lc
 
 
-def memory_experiment_surface(d, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
+def memory_experiment_surface(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
     
     if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
     elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
@@ -150,14 +150,14 @@ def memory_experiment_surface(d, code, QEC_cycles, entangling_gate_error_rate, e
     
     return lc
 
-def memory_experiment_MBQC(d, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X', biased_pres_gates = False, atom_array_sim=False):
+def memory_experiment_MBQC(dx, dy, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X', biased_pres_gates = False, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part.
     We are using the XZZX cluster state. cycles=c --> 2*c + 1 layers in the cluster state.
     
     """
     xzzx_instance = XZZX()  # Assuming XZZX has a constructor that can be called without arguments
 
-    init_circuit = xzzx_instance.get_circuit(cycles=QEC_cycles, dx=d, dy=d, basis=logical_basis,
+    init_circuit = xzzx_instance.get_circuit(cycles=QEC_cycles, dx=dx, dy=dy, basis=logical_basis,
                                         offset=0, architecture = 'MBQC', bias_preserving_gates = biased_pres_gates, 
                                         atom_array_sim = atom_array_sim)
     
@@ -165,7 +165,7 @@ def memory_experiment_MBQC(d, QEC_cycles, entangling_gate_error_rate, entangling
     if atom_array_sim:
         print("Need to build this feature in the new framework. It works only in the old framework.")
     else:
-        noisy_circuit, loss_probabilities, potential_lost_qubits = biased_erasure_noise_MBQC(init_circuit, dx=d, dy=d,
+        noisy_circuit, loss_probabilities, potential_lost_qubits = biased_erasure_noise_MBQC(init_circuit, dx=dx, dy=dy,
                                         entangling_gate_error_rate=entangling_gate_error_rate, entangling_gate_loss_rate=entangling_gate_loss_rate, 
                                         erasure_weight=erasure_ratio, bias_preserving = biased_pres_gates)
 
@@ -176,7 +176,7 @@ def memory_experiment_MBQC(d, QEC_cycles, entangling_gate_error_rate, entangling
 
 
 
-def Steane_QEC_circuit(d, code, Steane_type, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X',
+def Steane_QEC_circuit(dx, dy, code, Steane_type, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X',
                     biased_pres_gates = False, loss_detection_on_all_qubits = True, atom_array_sim=False, ancilla1_for_preselection: bool = False,
                     ancilla2_for_preselection: bool = False):
     assert logical_basis in ['X', 'Z'] # measurement basis for final logical state
@@ -186,9 +186,9 @@ def Steane_QEC_circuit(d, code, Steane_type, QEC_cycles, entangling_gate_error_r
     # q0: logical. q1: |+> ancilla. q2: |0> ancilla.
     
     if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
     elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
@@ -312,13 +312,13 @@ def Steane_QEC_circuit(d, code, Steane_type, QEC_cycles, entangling_gate_error_r
     return lc
 
 
-def GHZ_experiment_Surface(d, order, num_logicals, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X', biased_pres_gates = False, loss_detection_on_all_qubits = True, atom_array_sim=False):
+def GHZ_experiment_Surface(dx, dy, order, num_logicals, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X', biased_pres_gates = False, loss_detection_on_all_qubits = True, atom_array_sim=False):
     assert logical_basis in ['X', 'Z'] # measurement basis for final logical state
     print(f"order = {order}")
     if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
     elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(d, d) for _ in range(num_logicals)]
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,

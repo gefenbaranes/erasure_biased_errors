@@ -4,10 +4,9 @@ from typing import List
 
 
 class HeraldedCircuit_SWAP_LD:
-    def __init__(self, circuit: stim.Circuit, biased_erasure: bool, cycles: int, phys_error:float, erasure_ratio:float, bias_preserving_gates:bool, ancilla_qubits:list, data_qubits:list, distance=None, loss_detection_freq=None, code=None, basis = None, SSR = True, printing=False, **kwargs) -> None:
+    def __init__(self, circuit: stim.Circuit, biased_erasure: bool, cycles: int, phys_error:float, erasure_ratio:float, bias_preserving_gates:bool, ancilla_qubits:list, data_qubits:list, loss_detection_freq=None, code=None, basis = None, SSR = True, printing=False, **kwargs) -> None:
         self.logical_circuit = circuit
         self.biased_erasure = biased_erasure
-        self.distance = distance
         self.code = code
         self.basis = basis
         self.SSR = SSR

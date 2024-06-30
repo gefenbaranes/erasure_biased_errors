@@ -15,12 +15,13 @@ import copy
 import itertools
 
 class MLE_Loss_Decoder:
-    def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, distance:int, ancilla_qubits:list, data_qubits:list, loss_detection_freq=None, printing=False, output_dir=None, first_comb_weight=0.5, loss_detection_method_str='SWAP', **kwargs) -> None:
+    def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, dx:int, dy:int, ancilla_qubits:list, data_qubits:list, loss_detection_freq=None, printing=False, output_dir=None, first_comb_weight=0.5, loss_detection_method_str='SWAP', **kwargs) -> None:
         self.Meta_params = Meta_params
         self.bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         self.bloch_point_params = bloch_point_params
         self.cycles = cycles
-        self.distance = distance
+        self.dx = dx
+        self.dy = dy
         self.printing = printing
         self.loss_detection_freq = loss_detection_freq
         self.ancilla_qubits = ancilla_qubits
@@ -35,7 +36,7 @@ class MLE_Loss_Decoder:
         self.rounds_by_ix = {}
         # self.Pauli_DEM = None # detector error model for only Pauli errors
         self.real_losses_by_instruction_ix = {}
-        self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/d_{distance}__c_{cycles}"
+        self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{cycles}"
         print(self.loss_decoder_files_dir)
         self.measurement_map = {}
         self.decoder_type = Meta_params['loss_decoder']
@@ -64,7 +65,8 @@ class MLE_Loss_Decoder:
         data_str = json.dumps({
             'losses_by_instruction_ix': sorted_losses_by_instruction_ix
             # 'meta_params': self.Meta_params,
-            # 'distance': self.distance
+            # 'dx': self.dx,
+            # 'dy': self.dy,
         }, sort_keys=True)
         # Use SHA256 to generate a unique hash of the data
         return sha256(data_str.encode()).hexdigest()
@@ -99,7 +101,7 @@ class MLE_Loss_Decoder:
         self.qubit_lifecycles_and_losses_init = copy.deepcopy(self.qubit_lifecycles_and_losses)
         
         if self.printing:
-            print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and d = {self.distance}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
+            print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
         
         if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
             full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_1_losses.pickle'
@@ -668,7 +670,7 @@ class MLE_Loss_Decoder:
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
         batch_size = max(1, int(total_combinations * 0.05))
-        print(f"For d={self.distance}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
+        print(f"For dx={self.dx}, dy={self.dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
 
         # Step 2: Process all combinations in batches
         for batch_start in range(0, total_combinations, batch_size):

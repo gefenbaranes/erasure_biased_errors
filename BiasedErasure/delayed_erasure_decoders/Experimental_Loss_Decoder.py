@@ -5,11 +5,11 @@ from BiasedErasure.main_code.Simulator import *
 from BiasedErasure.delayed_erasure_decoders.HeraldedCircuit_SWAP_LD import HeraldedCircuit_SWAP_LD
 from BiasedErasure.main_code.noise_channels import atom_array
 
-def Loss_MLE_Decoder_Experiment(Meta_params, distance: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True):
+def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
-        Input: Meta_params, distance, num shots, experimental data: detector shots.
+        Input: Meta_params, distances = [dx,dy], num shots, experimental data: detector shots.
         Output: final DEM, corrections, num errors.
 
         Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': 'X', 'bias_preserving_gates': 'False', 
@@ -27,11 +27,12 @@ def Loss_MLE_Decoder_Experiment(Meta_params, distance: int, output_dir: str, mea
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
         cycles = int(Meta_params['cycles'])
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
-                                bloch_point_params=bloch_point_params, noise=atom_array , phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
+                                bloch_point_params=bloch_point_params, noise=atom_array , 
+                                phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
                                 cycles = cycles, output_dir=output_dir, save_filename=None)
         
         # Step 1 - decode:
-        predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, distance = distance, measurement_events = measurement_events, detection_events_signs=detection_events_signs, use_loss_decoding=use_loss_decoding)
+        predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy, measurement_events = measurement_events, detection_events_signs=detection_events_signs, use_loss_decoding=use_loss_decoding)
         
         
         return predictions, observable_flips, dems_list
