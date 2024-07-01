@@ -854,6 +854,9 @@ class MLE_Loss_Decoder:
                         loss_probability = 1 / num_potential_losses
                         for potential_loss_index in loss_indices:
                             self.potential_losses_by_instruction_index[(qubit, detection_round_ix)][potential_loss_index][0] = loss_probability
+                            
+                    else:
+                        stop = 0
                         
         if self.printing:
             print(f"potential_losses_by_instruction_index: {self.potential_losses_by_instruction_index}")
