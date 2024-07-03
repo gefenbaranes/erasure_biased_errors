@@ -415,10 +415,14 @@ class Simulator:
                     print("\n MLE DEM hyperedges matrix:")
                     print(final_dem_hyperedges_matrix)
 
+            measurement_events_no_loss = measurement_events.copy() 
+            measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
-            measurement_events = measurement_events.astype(np.bool_)
-            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
+            # measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
+            # measurement_events = measurement_events.astype(np.bool_)
+            # detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
             
 
             # add normalization step of detection events:
@@ -460,12 +464,18 @@ class Simulator:
         
         
         else: # regular decoding, without delayed erasure decoder
-            measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
-            measurement_events = measurement_events.astype(np.bool_)
-            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
+            measurement_events_no_loss = measurement_events.copy() 
+            measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+            # measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
+            # measurement_events = measurement_events.astype(np.bool_)
+            # detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
+            
             # add normalization step of detection events:
             detection_events_int = detection_events.astype(np.int32)
-            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
             detection_events = detection_events_flipped.astype(np.bool_)
             
             if self.decoder == "MLE":
