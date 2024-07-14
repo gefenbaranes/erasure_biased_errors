@@ -125,16 +125,16 @@ class HeraldedCircuit_SWAP_LD:
                     CZ_round_ix = 0
                     self.gates_ordering_dict[round_ix] = {}
                     
-                    # self.qubits_type_by_qec_round[round_ix] = {}
-                    # for qubit in self.all_qubits:
-                    #     logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(qubit)
-                    #     qubit_type = 'data' if qubit in logical_qubit.data_qubits else 'ancilla'
-                    #     self.qubits_type_by_qec_round[round_ix][qubit] = qubit_type
+                    self.qubits_type_by_qec_round[round_ix] = {}
+                    for qubit in self.all_qubits:
+                        logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(qubit)
+                        qubit_type = 'data' if qubit in logical_qubit.data_qubits else 'ancilla'
+                        self.qubits_type_by_qec_round[round_ix][qubit] = qubit_type
                         
                     if (round_ix+1)%self.loss_detection_freq == 0:
                         SWAP_round = True
-                        # SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                        # SWAP_round_index += 1
+                        SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+                        SWAP_round_index += 1
                     else:
                         SWAP_round = False
                 else: # end of round
@@ -146,38 +146,36 @@ class HeraldedCircuit_SWAP_LD:
             
             if inside_qec_round: # TODO: first do the H and then do the SWAP things
                 if updated_instruction.name in ['CZ', 'CX']:
-                    # gate_type = updated_instruction.name
+                    gate_type = updated_instruction.name
                     
-                    # qubits = [q.value for q in updated_instruction.targets_copy()]
-                    # pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
-                    # for (c,t) in pairs:
-                        # # if we lose c (control), the target will get the following error:
-                        # if gate_type == 'CZ':
-                        #     noise_type = 'Z'
-                        # elif gate_type == 'CX':
-                        #     noise_type = 'X'
-                        # if c not in self.gates_ordering_dict[round_ix].keys():
-                        #     self.gates_ordering_dict[round_ix][c] = {CZ_round_ix: [t,noise_type]}
-                        # else:
-                        #     self.gates_ordering_dict[round_ix][c][CZ_round_ix] = [t,noise_type]
+                    qubits = [q.value for q in updated_instruction.targets_copy()]
+                    pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
+                    for (c,t) in pairs:
+                        # if we lose c (control), the target will get the following error:
+                        if gate_type == 'CZ':
+                            noise_type = 'Z'
+                        elif gate_type == 'CX':
+                            noise_type = 'X'
+                        if c not in self.gates_ordering_dict[round_ix].keys():
+                            self.gates_ordering_dict[round_ix][c] = {CZ_round_ix: [t,noise_type]}
+                        else:
+                            self.gates_ordering_dict[round_ix][c][CZ_round_ix] = [t,noise_type]
                             
-                        # # if we lose t (target), the control will get the following error:
-                        # if gate_type == 'CZ':
-                        #     noise_type = 'Z'
-                        # elif gate_type == 'CX':
-                        #     noise_type = 'Z'
-                        # if t not in self.gates_ordering_dict[round_ix].keys():
-                        #     self.gates_ordering_dict[round_ix][t] = {CZ_round_ix: [c,noise_type]}
-                        # else:
-                        #     self.gates_ordering_dict[round_ix][t][CZ_round_ix]= [c,noise_type]
+                        # if we lose t (target), the control will get the following error:
+                        if gate_type == 'CZ':
+                            noise_type = 'Z'
+                        elif gate_type == 'CX':
+                            noise_type = 'Z'
+                        if t not in self.gates_ordering_dict[round_ix].keys():
+                            self.gates_ordering_dict[round_ix][t] = {CZ_round_ix: [c,noise_type]}
+                        else:
+                            self.gates_ordering_dict[round_ix][t][CZ_round_ix]= [c,noise_type]
                     CZ_round_ix += 1
                     
                 if (updated_instruction.name == 'I'): # implement SWAP when needed:
                     if SWAP_round and (CZ_round_ix == 4): # last entangling gates in the round, need to add QI and physical SWAPs
                         # if self.bias_preserving_gates:
-                        SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
                         self.insert_SWAP_operations(updated_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping)
-                        SWAP_round_index += 1
                         # else: # first need to insert the next instruction, H:
                             # insert_H_first = True
                             # I_instruction = updated_instruction

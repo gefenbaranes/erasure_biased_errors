@@ -521,47 +521,53 @@ class LogicalCircuit(stim.Circuit):
 
             circuit = stim.Circuit()
             circuit.append(name, targets, arg)
+            super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            
+            
             entangling_gate_loss_rate, reset_loss_rate, single_qubit_loss_rate = self.entangling_gate_loss_rate, self.reset_loss_rate, self.single_qubit_loss_rate
             self.entangling_gate_loss_rate, self.reset_loss_rate, self.single_qubit_loss_rate = 0., 0., 0.
             self._without_loss += self.add_noise(circuit, add_to_potential_loss = False)
             self.entangling_gate_loss_rate, self.reset_loss_rate, self.single_qubit_loss_rate = entangling_gate_loss_rate, reset_loss_rate, single_qubit_loss_rate
 
-            # Add only circuit instructions on non-lost qubits # NOT RELEVANT ANYMORE, if we want to make it faster we can just append the instruction to all targets
-            circuit = stim.Circuit()
-            if tools.is_entangling(str(name)):
-                # Remove both qubits in the gate if a single qubit in the entangling gate is lost
-                not_lost_targets = []
-                for _ in range(len(targets) // 2):
-                    # We always want to do swaps, because it corresponds to when we physically rotate the code!
-                    if (not (targets[2 * _] in self.lost_qubits) and not (targets[2 * _ + 1] in self.lost_qubits)) \
-                            or str(name) == 'SWAP':
-                        not_lost_targets.append(targets[2 * _])
-                        not_lost_targets.append(targets[2 * _ + 1])
-                circuit.append(name, not_lost_targets, arg)
-                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
-            elif tools.is_single_qubit(str(name)):
-                circuit.append(name, targets, arg)
-                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
-            elif tools.is_measurement(str(name)):
-                # Reset lost qubits in |1>
-                reset_circuit = stim.Circuit()
-                lost_targets = [t for t in targets if t in self.lost_qubits]
-                if len(lost_targets) > 0:
-                    reset_circuit.append('R', lost_targets)
-                    reset_circuit.append('X_ERROR', lost_targets, 1)
-                    super().__iadd__(reset_circuit, add_to_potential_loss=True)
+            # # Add only circuit instructions on non-lost qubits # NOT RELEVANT ANYMORE, if we want to make it faster we can just append the instruction to all targets
+            # circuit = stim.Circuit()
+            # if tools.is_entangling(str(name)):
+            #     # GB: removed this part, not relevant with the new loss handling method:
+            #     # # Remove both qubits in the gate if a single qubit in the entangling gate is lost
+            #     # not_lost_targets = []
+            #     # for _ in range(len(targets) // 2):
+            #     #     # We always want to do swaps, because it corresponds to when we physically rotate the code!
+            #     #     if (not (targets[2 * _] in self.lost_qubits) and not (targets[2 * _ + 1] in self.lost_qubits)) \
+            #     #             or str(name) == 'SWAP':
+            #     #         not_lost_targets.append(targets[2 * _])
+            #     #         not_lost_targets.append(targets[2 * _ + 1])
+            #     # circuit.append(name, not_lost_targets, arg)
+            #     circuit.append(name, targets, arg)
+            #     super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            # elif tools.is_single_qubit(str(name)):
+            #     circuit.append(name, targets, arg)
+            #     super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            # elif tools.is_measurement(str(name)):
+            #     # GB: removed this part, not relevant to the new loss handling method:
+            #     # Reset lost qubits in |1>
+            #     # reset_circuit = stim.Circuit()
+            #     # lost_targets = [t for t in targets if t in self.lost_qubits]
+            #     # if len(lost_targets) > 0:
+            #     #     reset_circuit.append('R', lost_targets)
+            #     #     reset_circuit.append('X_ERROR', lost_targets, 1)
+            #     #     super().__iadd__(reset_circuit, add_to_potential_loss=True)
 
-                self.lost_qubits = self.lost_qubits - set(lost_targets)
-                circuit.append(name, targets, arg)
-                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            #     # self.lost_qubits = self.lost_qubits - set(lost_targets)
+            #     circuit.append(name, targets, arg)
+            #     super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
             
-            elif tools.is_reset(str(name)): # GB's addition
-                circuit.append(name, targets, arg)
-                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            # elif tools.is_reset(str(name)): # GB's addition
+            #     circuit.append(name, targets, arg)
+            #     super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
             
-            else:
-                circuit.append(name, targets, arg)
-                super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
+            # else:
+            #     circuit.append(name, targets, arg)
+            #     super().__iadd__(self.add_noise(circuit, add_to_potential_loss=True))
 
     def qubit_index_to_logical_qubit(self, index: int):
         for lq in self.logical_qubits:

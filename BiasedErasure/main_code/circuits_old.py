@@ -12,7 +12,6 @@ from BiasedErasure.main_code.XZZX import XZZX
 from BiasedErasure.main_code.noise_channels import biased_erasure_noise_MBQC
 from BiasedErasure.main_code.LogicalCircuitMBQC import LogicalCircuitMBQC
 from BiasedErasure.main_code.LogicalCircuit import LogicalCircuit 
-from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircuit
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
@@ -180,10 +179,10 @@ def memory_experiment_MBQC(dx, dy, QEC_cycles, entangling_gate_error_rate, entan
 
 
 
-    
+
 def Steane_QEC_circuit(dx, dy, code, Steane_type, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, logical_basis='X',
                     biased_pres_gates = False, loss_detection_on_all_qubits = True, atom_array_sim=False, ancilla1_for_preselection: bool = False,
-                    ancilla2_for_preselection: bool = False, obs_pos: int = None):
+                    ancilla2_for_preselection: bool = False):
     assert logical_basis in ['X', 'Z'] # measurement basis for final logical state
     assert Steane_type in ['Regular', 'SWAP'] # measurement basis for final logical state
     num_logicals = 3
@@ -222,7 +221,7 @@ def Steane_QEC_circuit(dx, dy, code, Steane_type, QEC_cycles, entangling_gate_er
     # FT preparation of logical ancilla qubits:
     for logical_ancilla_ix in [1,2]:
         if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
-        for _ in range(obs_pos):
+        for _ in range(QEC_cycles//2):
             lc.append_from_stim_program_text("""TICK""") # starting a QEC round
             lc.append(qec.surface_code.measure_stabilizers, [logical_ancilla_ix], order='fowler', with_cnot=biased_pres_gates, compare_with_previous=True) # append QEC rounds
             lc.append_from_stim_program_text("""TICK""") # starting a QEC round
@@ -250,7 +249,7 @@ def Steane_QEC_circuit(dx, dy, code, Steane_type, QEC_cycles, entangling_gate_er
         lc.gate_noise_scale_factor = 1
         lc.loss_noise_scale_factor = 1
 
-        for _ in range(QEC_cycles - obs_pos):
+        for _ in range(QEC_cycles//2):
             lc.append_from_stim_program_text("""TICK""") # starting a QEC round
             lc.append(qec.surface_code.measure_stabilizers, [logical_ancilla_ix], order='fowler', with_cnot=biased_pres_gates, compare_with_previous=True) # append QEC rounds
             lc.append_from_stim_program_text("""TICK""") # starting a QEC round
@@ -313,82 +312,6 @@ def Steane_QEC_circuit(dx, dy, code, Steane_type, QEC_cycles, entangling_gate_er
 
     elif logical_basis == 'Z':
         lc.append(qec.surface_code.measure_z, [final_logical_ix], observable_include=observable_include)
-
-    return lc
-
-
-def steane_ancilla_prep(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, basis='X',
-                    biased_pres_gates = False, atom_array_sim=False, obs_pos: int = None):
-    assert basis in ['X', 'Z'] # measurement basis for final logical state
-    num_logicals = 3
-    logical_ix = 1 if basis == 'X' else 2
-    # q0: logical. q1: |+> ancilla. q2: |0> ancilla.
-    
-    if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
-    elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
-    
-    if atom_array_sim:
-        lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
-                                loss_noise_scale_factor=1, spam_noise_scale_factor=1,
-                                gate_noise_scale_factor=1, idle_noise_scale_factor=1,
-                                atom_array_sim = atom_array_sim)
-    else:
-        lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
-                                loss_noise_scale_factor=1, spam_noise_scale_factor=0,
-                                gate_noise_scale_factor=1, idle_noise_scale_factor=0,
-                                entangling_gate_error_rate=entangling_gate_error_rate, 
-                                entangling_gate_loss_rate=entangling_gate_loss_rate,
-                                erasure_ratio = erasure_ratio,
-                                atom_array_sim = atom_array_sim)
-        
-    if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
-    
-
-    # First prepare all logical qubits:
-    lc.append(qec.surface_code.prepare_zero, [0])
-    lc.append(qec.surface_code.prepare_plus, [1])
-    lc.append(qec.surface_code.prepare_zero, [2])
-    # if logical_ix == 1:
-    #     lc.append(qec.surface_code.prepare_plus, [1])
-    # else:
-    #     lc.append(qec.surface_code.prepare_zero, [2])
-
-    # FT preparation of logical ancilla qubits:
-    if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
-    for _ in range(obs_pos):
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        lc.append(qec.surface_code.measure_stabilizers, [logical_ix], order='fowler', with_cnot=biased_pres_gates, compare_with_previous=True) # append QEC rounds
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-
-    lc.spam_noise_scale_factor = 0 
-    lc.gate_noise_scale_factor = 0
-    lc.loss_noise_scale_factor = 0
-
-    if basis == 'X':
-        lq = lc.logical_qubits[logical_ix]
-        physical_data_qubit_layout = lq.data_qubits.reshape(lq.dy, lq.dx)
-        logical_x = physical_data_qubit_layout[lq.dy // 2, :]
-        logical_x_operator = []
-        for _ in range(len(logical_x)):
-            logical_x_operator.append(stim.target_x(logical_x[_]))
-            if _ != len(logical_x) - 1:
-                logical_x_operator.append(stim.target_combiner())
-        lc.append('MPP', logical_x_operator)
-        lc.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], lc.num_observables)
-    else:
-        lc.append('MPP', lc.logical_qubits[logical_ix].logical_z_operator)
-        lc.append('OBSERVABLE_INCLUDE', [stim.target_rec(-1)], lc.num_observables)
-
-    lc.spam_noise_scale_factor = 0
-    lc.gate_noise_scale_factor = 1
-    lc.loss_noise_scale_factor = 1
-
-    for _ in range(QEC_cycles - obs_pos):
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        lc.append(qec.surface_code.measure_stabilizers, [logical_ix], order='fowler', with_cnot=biased_pres_gates, compare_with_previous=True) # append QEC rounds
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
 
     return lc
 
@@ -464,37 +387,6 @@ def GHZ_experiment_Surface(dx, dy, order, num_logicals, code, QEC_cycles, entang
     
     
     
-def random_logical_algorithm(code, num_logicals, depth, distance, n_r, bias_ratio, erasure_ratio, phys_err, output_dir):
-    # n_r = num rounds. if < 1, every 1/n_r layers we have 1 QEC round. if >=1, every layer we have n_r QEC rounds.
-    def generate_folder_name(num_logicals, depth, distance, n_r, bias_ratio, erasure_ratio, phys_err):
-        if bias_ratio >= 1:
-            bias_ratio = int(bias_ratio)
-        folder_name = f"random_deep_circuits/random_algorithm__n{num_logicals}__depth{depth}/random_algorithm__n{num_logicals}__depth{depth}__distance{distance}__nr{n_r}__p{phys_err}__bias{bias_ratio}__erasure{erasure_ratio}"
-        return folder_name
-
-    folder_name = generate_folder_name(num_logicals, depth, distance, n_r, bias_ratio, erasure_ratio, phys_err)
-    save_dir = f"{output_dir}/{folder_name}"
-    
-    if code == 'Rotated_Surface':
-        logical_qubits = [qec.surface_code.RotatedSurfaceCode(distance, distance) for _ in range(num_logicals)]
-    elif code == 'Surface':
-        logical_qubits = [qec.surface_code.SurfaceCode(distance, distance) for _ in range(num_logicals)]
-        
-        
-    # Load the NumPy arrays
-    loss_probabilities = np.load(os.path.join(save_dir, 'loss_probabilities.npy'))
-    potential_lost_qubits = np.load(os.path.join(save_dir, 'potential_lost_qubits.npy'))
-
-    # Load the .stim file
-    stim_file_path = os.path.join(save_dir, 'logical_circuit.stim')
-    logical_circuit = stim.Circuit()
-    with open(stim_file_path, 'r') as f:
-        circuit_text = f.read()
-    logical_circuit.append_from_stim_program_text(circuit_text)
-
-    lc = GenerateLogicalCircuit(logical_qubits, logical_circuit, loss_probabilities, potential_lost_qubits)
-    
-    return lc
 
 # def memory_experiment_xzzx(d, cycles, entangling_gate_error_rate, entangling_gate_loss_rate, num_logicals=1, logical_basis='X', biased_pres_gates=False):
 #     assert logical_basis in ['X', 'Z']

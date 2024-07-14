@@ -28,9 +28,7 @@ class Simulator:
                 output_dir = None,
                 save_filename = None,
                 first_comb_weight=0.5,
-                dont_use_loss_decoder=False,
-                save_data_during_sim = False,
-                n_r = 1
+                dont_use_loss_decoder=False
                 ) -> None:
         """
         Architecture is one of 'CBQC', 'MBQC'
@@ -61,14 +59,11 @@ class Simulator:
         self.loss_decoder_type = Meta_params['loss_decoder']
         self.circuit_type = Meta_params['circuit_type']
         self.Steane_type = Meta_params['Steane_type']
-        self.obs_pos = Meta_params['obs_pos'] if Meta_params['obs_pos'] is not None else 'd/2'
         self.printing = strtobool(Meta_params['printing'])
         self.output_dir = output_dir
         self.save_filename = save_filename
         self.first_comb_weight = first_comb_weight
         self.dont_use_loss_decoder = dont_use_loss_decoder # if TRUE, we are not using loss decoder at all. all shots get same DEM.
-        self.save_data_during_sim = save_data_during_sim
-        self.n_r = Meta_params['n_r'] # num of rounds before a QEC round
 
     def get_job_id(self):
         # Check for environment variables used by different cluster management systems
@@ -111,9 +106,7 @@ class Simulator:
                                                 logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, atom_array_sim=self.atom_array_sim)
                 
-            elif self.circuit_type == 'random_alg':
-                return random_logical_algorithm(code=self.code, num_logicals = self.num_logicals, depth=self.cycles+1, distance=d, n_r = self.n_r, bias_ratio = self.bias_ratio, erasure_ratio = self.erasure_ratio, phys_err = phys_err, output_dir = self.output_dir)
-            
+                
         elif self.circuit_type in ['GHZ_all_o1', 'GHZ_save_o1','GHZ_all_o2', 'GHZ_save_o2']:
             order_1 = []
             order_2 = []
@@ -134,12 +127,11 @@ class Simulator:
                                             logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates, 
                                             loss_detection_on_all_qubits=False, atom_array_sim=self.atom_array_sim)
         elif self.circuit_type == 'Steane_QEC':
-            obs_pos = int(eval(self.obs_pos.replace('d', str(min(dx, dy)))))
             return Steane_QEC_circuit(dx=dx, dy=dy, code=self.code, Steane_type=self.Steane_type, QEC_cycles=cycles-1,
                                         entangling_gate_error_rate=entangling_gate_error_rate, entangling_gate_loss_rate=entangling_gate_loss_rate,
                                         erasure_ratio=self.erasure_ratio,
                                         logical_basis=self.logical_basis, biased_pres_gates = self.bias_preserving_gates,
-                                        loss_detection_on_all_qubits=True, atom_array_sim=self.atom_array_sim, obs_pos=obs_pos)
+                                        loss_detection_on_all_qubits=True, atom_array_sim=self.atom_array_sim)
                 
 
         else:
@@ -231,8 +223,7 @@ class Simulator:
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                 cycles=cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq, 
                                                 first_comb_weight=self.first_comb_weight,
-                                                output_dir = self.output_dir, decoder_type = self.loss_decoder_type,
-                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
+                                                output_dir = self.output_dir, decoder_type = self.loss_decoder_type)
         
         if self.loss_detection_method_str == 'SWAP':
             SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
@@ -322,9 +313,6 @@ class Simulator:
 
             num_errors = np.sum(np.logical_xor(observable_flips_squeezed, predictions_bool))
 
-            if self.circuit_type == 'random_alg':
-                corrected_observables_correlated = np.logical_xor(observable_flips_squeezed, predictions_bool)
-                num_errors = np.sum(1 - np.alltrue(1-corrected_observables_correlated, axis=1))
 
                                                     
         else: # no loss errors at all
@@ -344,11 +332,7 @@ class Simulator:
                 )
 
             num_errors = np.sum(np.logical_xor(observable_flips, prediction))
-            
-            if self.circuit_type == 'random_alg':
-                corrected_observables_correlated = np.logical_xor(observable_flips, prediction)
-                num_errors = np.sum(1 - np.alltrue(1-corrected_observables_correlated, axis=1))
-                
+        
         # logical_error = num_errors / num_shots
         return num_errors, num_shots
     
@@ -386,8 +370,7 @@ class Simulator:
                                                 dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
                                                 cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
-                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
-                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
+                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type)
         
         if self.loss_detection_method_str == 'SWAP':
             SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
