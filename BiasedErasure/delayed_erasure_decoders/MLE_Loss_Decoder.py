@@ -583,15 +583,15 @@ class MLE_Loss_Decoder:
                 detection_events, observable_flips = sampler.sample(5, separate_observables=True)
                 print(f"detection_events = \n{detection_events}, observable_flips = \n{observable_flips}")
 
-            # for debugging:
-            rows_list = []
-            for row in range(hyperedges_matrix_dem.shape[0]):
-                # Find the indices of non-zero elements in this row.
-                row_data = hyperedges_matrix_dem.getrow(row).tocoo()
-                non_zero_indices = row_data.col.tolist()
-                rows_list.append(non_zero_indices)
+            # # for debugging:
+            # rows_list = []
+            # for row in range(hyperedges_matrix_dem.shape[0]):
+            #     # Find the indices of non-zero elements in this row.
+            #     row_data = hyperedges_matrix_dem.getrow(row).tocoo()
+            #     non_zero_indices = row_data.col.tolist()
+            #     rows_list.append(non_zero_indices)
             
-            self.losses_to_detectors.append([losses_by_instruction_ix, rows_list])
+            # self.losses_to_detectors.append([losses_by_instruction_ix, rows_list])
                 
                 
                 
@@ -1092,6 +1092,7 @@ class MLE_Loss_Decoder:
         final_dem = stim.DetectorErrorModel()
         
         # Iterate over the rows of the hypergraph_matrix to create the DEM while adjusting the circuit based on the hyperedges_matrix to re-include observables
+        observables_indices_in_dem = []
         for row_index in range(final_hyperedges_matrix.shape[0]):
             row = final_hyperedges_matrix.getrow(row_index)
             non_zero_columns = row.nonzero()[1]
@@ -1114,11 +1115,19 @@ class MLE_Loss_Decoder:
                 else: # this col is an observable
                     observable_index = self.observables_indices.index(d)  # Finding the index of observable 'd' in the self.observables_indices list
                     error_targets.append(stim.target_logical_observable_id(observable_index))
+                    observables_indices_in_dem.append(d)
                     
             # Append error with probability to final_dem
             if self.printing:
                 print(f"Error targets = {error_targets}, Probability = {probability}")
             final_dem.append("error", probability, error_targets)
+        
+        # new part: append observables to DEM that didn't have any error:
+        observables_without_errors = [x for x in self.observables_indices if x not in observables_indices_in_dem]
+        for d in observables_without_errors:
+            observable_index = self.observables_indices.index(d) 
+            error_targets = [stim.target_logical_observable_id(observable_index)]
+            final_dem.append("error", 0, error_targets)
             
         return final_dem
         
@@ -1153,6 +1162,14 @@ class MLE_Loss_Decoder:
                         else:
                             new_circuit.append(instruction.name, [q])
 
+                elif instruction.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2', 'X_ERROR', 'Y_ERROR', 'Z_ERROR']:
+                    for q in targets:
+                        if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
+                            if self.printing :
+                                a=1
+                                # print(f"Removing this gate from the heralded circuit: {instruction.name}, because my lost qubits = {lost_qubits}")
+                        else:
+                            new_circuit.append(instruction.name, [q], instruction.gate_args_copy())
                             
                 elif instruction.name in ['MRX', 'MR']:
                     for q in targets:
@@ -1423,7 +1440,7 @@ class MLE_Loss_Decoder:
         
     def get_qubits_lifecycles_SWAP(self):
         # Iterate through circuit. Record the lifecycles of each qubit, from initialization to measurement.
-        loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
+        # loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
         round_ix = -1
         inside_qec_round = False
         SWAP_round_index = 0
