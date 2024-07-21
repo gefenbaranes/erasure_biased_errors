@@ -112,8 +112,7 @@ class LogicalCircuit(stim.Circuit):
 
         # Handling loss:
         self.potential_lost_qubits = np.array([], dtype=np.int32)
-        self.loss_probabilities = np.array([], dtype=np.float32)
-        
+        self.loss_probabilities = np.array([], dtype=np.float32)        
         
         
         if initialize_circuit:

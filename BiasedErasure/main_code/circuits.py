@@ -37,9 +37,16 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
-        # playing with error model:
+        # playing with error model: # it works!!! :)
         # entangling_gate_loss_rate = 0.06
         # single_qubit_loss_rate = 0.06
+        # lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
+        #                         loss_noise_scale_factor=1, spam_noise_scale_factor=1,
+        #                         gate_noise_scale_factor=1, idle_noise_scale_factor=1,
+        #                         atom_array_sim = atom_array_sim,
+        #                         entangling_gate_loss_rate=entangling_gate_loss_rate,
+        #                         single_qubit_loss_rate=single_qubit_loss_rate
+        #                         )
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                                 loss_noise_scale_factor=1, spam_noise_scale_factor=1,
                                 gate_noise_scale_factor=1, idle_noise_scale_factor=1,

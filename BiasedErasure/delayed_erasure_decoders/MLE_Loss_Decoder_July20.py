@@ -1,8 +1,11 @@
 import stim
 import numpy as np
+from typing import List
+import scipy
 from scipy.sparse import lil_matrix
 from itertools import product
 from scipy.sparse import dok_matrix, csc_matrix, csr_matrix
+from scipy.sparse import vstack, csr_matrix
 import os
 import json
 from hashlib import sha256
@@ -10,8 +13,7 @@ import pickle
 import time
 import copy
 import itertools
-from collections import defaultdict
-        
+
 class MLE_Loss_Decoder:
     def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, dx:int, dy:int, ancilla_qubits:list, data_qubits:list, loss_detection_freq=None, printing=False, output_dir=None, first_comb_weight=0.5, loss_detection_method_str='SWAP', save_data_during_sim=False, n_r=1, circuit_type = '',  **kwargs) -> None:
         self.Meta_params = Meta_params
@@ -58,8 +60,8 @@ class MLE_Loss_Decoder:
         self._circuit = value
         # Update self.extra_num_detectors whenever self.circuit is redefined
         # TODO: remove that, its saved in stim's dem
-        # observable_instructions_ix = [i for i, instruction in enumerate(self._circuit) if instruction.name == 'OBSERVABLE_INCLUDE']
-        # self.extra_num_detectors = len(observable_instructions_ix)
+        observable_instructions_ix = [i for i, instruction in enumerate(self._circuit) if instruction.name == 'OBSERVABLE_INCLUDE']
+        self.extra_num_detectors = len(observable_instructions_ix)
         
 
     def _generate_unique_key(self, losses_by_instruction_ix):
@@ -89,20 +91,9 @@ class MLE_Loss_Decoder:
             return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
 
 
-    def generate_loss_instruction_indices(self):
-        self.circuit.loss_instruction_indices = {}
-        
-        loss_index = 0
-        for idx, instruction in enumerate(self.circuit):
-            if instruction.name == 'I':
-                self.circuit.loss_instruction_indices[idx] = self.circuit.loss_probabilities[loss_index]
-                loss_index += len(instruction.targets_copy())
-
-
     def initialize_loss_decoder(self, **kargs):
         self.set_up_Pauli_DEM()
         self.rounds_by_ix = self.split_stim_circuit_into_rounds()
-        self.generate_loss_instruction_indices() # setup self.circuit.loss_instruction_indices
         self.generate_measurement_map() # fill out self.measurement_map {measurement_index: (qubit, round_index)}
         # fill out self.qubit_lifecycles_and_losses (without the losses for now):
         
@@ -134,7 +125,7 @@ class MLE_Loss_Decoder:
 
         elif self.decoder_type == 'comb':
             self.circuit_comb_dems = {}
-            for num_of_losses in [1,2]: # number of losses in the combination # TODO: change back to [1,2,3,4,5,6,7]
+            for num_of_losses in [1,2,3,4,5]: # number of losses in the combination # TODO: change back to [1,2,3,4,5,6,7]
                 full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
                 
                 # pre-process all combinations before:
@@ -168,7 +159,6 @@ class MLE_Loss_Decoder:
                         print(f"Error: {e}. The file {full_filename_dems} might be corrupted or missing. Creating an empty file.")
                         with open(full_filename_dems, 'wb') as file:
                             pickle.dump(({}, self.Meta_params), file)
-    
     
     def decode_loss_MLE(self, loss_detection_events):
         """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
@@ -205,7 +195,7 @@ class MLE_Loss_Decoder:
                 final_dem = self.generate_all_DEMs_and_sum_over_independent_events(add_first_combination = True)
             else:
                 # All combination decoder:
-                self.all_potential_losses_combinations, self.combinations_events_probabilities = self.generate_all_potential_losses_combinations(potential_losses_by_instruction_index = self.potential_losses_by_instruction_index)
+                self.all_potential_losses_combinations, self.combination_event_probability = self.generate_all_potential_losses_combinations(potential_losses_by_instruction_index = self.potential_losses_by_instruction_index)
                 final_dem = self.generate_all_DEMs_and_sum_over_combinations()
                 if self.printing:
                     print("Now lets see all loss pattern and which detectors were affected:")
@@ -250,7 +240,7 @@ class MLE_Loss_Decoder:
             
             else:
                 # All combination decoder:
-                self.all_potential_losses_combinations, self.combinations_events_probabilities = self.generate_all_potential_losses_combinations(potential_losses_by_instruction_index = self.potential_losses_by_instruction_index)
+                self.all_potential_losses_combinations, self.combination_event_probability = self.generate_all_potential_losses_combinations(potential_losses_by_instruction_index = self.potential_losses_by_instruction_index)
                 final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_combinations(return_hyperedges_matrix=True)
                 if self.printing:
                     print("Now lets see all loss pattern and which detectors were affected:")
@@ -559,12 +549,10 @@ class MLE_Loss_Decoder:
         
         return experimental_circuit
         
-    
-    
-    
-    
-    def generate_dem_loss_circuit(self, losses_by_instruction_ix, event_probability, full_filename=''):
-        """ Generate a DEM for given losses as a lil matrix """
+        
+    def generate_dem_loss_circuit(self, losses_by_instruction_ix, event_probability=1, full_filename=''):
+        """ given a dictionary of losses, this function generates the circuit while considering the losses.
+        """
         # Generate a unique key based on losses_by_instruction_ix and self.Meta_params
         key = self._generate_unique_key(losses_by_instruction_ix) 
 
@@ -595,6 +583,22 @@ class MLE_Loss_Decoder:
                 detection_events, observable_flips = sampler.sample(5, separate_observables=True)
                 print(f"detection_events = \n{detection_events}, observable_flips = \n{observable_flips}")
 
+            # # for debugging:
+            # rows_list = []
+            # for row in range(hyperedges_matrix_dem.shape[0]):
+            #     # Find the indices of non-zero elements in this row.
+            #     row_data = hyperedges_matrix_dem.getrow(row).tocoo()
+            #     non_zero_indices = row_data.col.tolist()
+            #     rows_list.append(non_zero_indices)
+            
+            # self.losses_to_detectors.append([losses_by_instruction_ix, rows_list])
+                
+                
+                
+            # Once the circuit is generated, save it along with self.Meta_params
+            # with open(full_filename, 'wb') as file:
+            #     pickle.dump((hyperedges_matrix_dem, extra_num_detectors, self.Meta_params), file)
+
 
             return hyperedges_matrix_dem
     
@@ -607,38 +611,169 @@ class MLE_Loss_Decoder:
                     targets = instruction.targets_copy()
                     for q in targets:
                         qubit = q.value
-                        # losses_by_instruction_ix = {instruction_ix: [qubit]}
-                        # num_potential_losses = 0
+                        losses_by_instruction_ix = {instruction_ix: [qubit]}
+                        num_potential_losses = 0
                         [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[qubit] if cycle[0] <= round_ix <= cycle[1]), None)
                         potential_rounds_for_loss_events = range(reset_round_ix, detection_round_ix+1)
                         for potential_round in potential_rounds_for_loss_events:
                             round_instructions = self.rounds_by_ix[potential_round]
                             round_offset = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < potential_round)
                             losses_indices_in_round = [i + round_offset for i, instruction in enumerate(round_instructions) if instruction.name == 'I' and qubit in [q.value for q in instruction.targets_copy()]]
-                            
-                            # num_potential_losses += len(losses_indices_in_round)
-                            
-                            for potential_loss_index in losses_indices_in_round:
-                                event_probability = self.circuit.loss_instruction_indices.get(potential_loss_index, 0)
-                                # event_probability = 1/num_potential_losses
-                                loss_event = (instruction_ix, qubit, event_probability)
-                                all_potential_loss_qubits_indices.append(loss_event)
+                            num_potential_losses += len(losses_indices_in_round)
+                        event_probability = 1/num_potential_losses
+                        loss_event = (instruction_ix, qubit, event_probability)
+                        all_potential_loss_qubits_indices.append(loss_event)
                 instruction_ix += 1
         return all_potential_loss_qubits_indices
     
+    def preprocess_circuit_comb(self, full_filename, num_of_losses=1, all_potential_loss_qubits_indices=[]):
+        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
+        # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
+        # Also, we generate all DEMs for combinations of qubit losses.
+        # num_of_losses = how many loss events are they. If 1 --> same as independent function.
+        
+        start_time = time.time()
+        os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
+                
+        ### Step 1: get all lost events:
+        # already implemented before once, we get all_potential_loss_qubits_indices.
+                
+        
+        ### Step 2: get all combinations with num_of_losses losses:
+        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
+        total_combinations = len(all_combinations)
+        batch_size = max(1, int(total_combinations * 0.05))
     
+        ### Step 3: process all combinations:
+        circuit_comb_dems = {}
+        for combination in all_combinations:
+            losses_by_instruction_ix = {}
+            combination_event_probability = 1
+            for (instruction_ix, qubit, event_probability) in combination:
+                combination_event_probability *= event_probability
+                if instruction_ix not in losses_by_instruction_ix:
+                    losses_by_instruction_ix[instruction_ix] = [qubit]
+                else:
+                    losses_by_instruction_ix[instruction_ix].append(qubit)
+            
+            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=combination_event_probability, full_filename=full_filename)
+            key = self._generate_unique_key(losses_by_instruction_ix)
+            circuit_comb_dems[key] = hyperedges_matrix_dem
+                        
+        end_time = time.time()
+        print(f"building all {len(all_combinations)} loss circuits for {num_of_losses} losses took {end_time - start_time} sec. Saving the result!")
+        
+        with open(full_filename, 'wb') as file:
+            pickle.dump((circuit_comb_dems, self.Meta_params), file)
+        
+        # combine into the full dictionary with all num_of_losses dems
+        self.circuit_comb_dems.update(circuit_comb_dems)
+        
+        
+    def preprocess_circuit_comb_batches(self, full_filename, num_of_losses=1, all_potential_loss_qubits_indices=[]):
+        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
+        # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
+        # Also, we generate all DEMs for combinations of qubit losses.
+        # num_of_losses = how many loss events are they. If 1 --> same as independent function.
+        
+        batches_dir = f'{self.loss_decoder_files_dir}/batches_{num_of_losses}'
+        os.makedirs(batches_dir, exist_ok=True)  # Ensure the batch directory exists
+
+
+        # Step 1: Get all combinations with num_of_losses losses
+        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
+        total_combinations = len(all_combinations)
+        batch_size = max(1, int(total_combinations * 0.05))
+        print(f"For dx={self.dx}, dy={self.dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
+
+        # Step 2: Process all combinations in batches
+        for batch_start in range(0, total_combinations, batch_size):
+            batch_end = min(batch_start + batch_size, total_combinations)
+            full_filename_batch = f'{batches_dir}/batch_{batch_start}_to_{batch_end}.pickle'
+            
+            # Check if this batch was already processed
+            if os.path.exists(full_filename_batch):
+                print(f"Batch {batch_start} to {batch_end} already processed. Skipping.")
+                continue # Continue to the next batch
+
+            circuit_comb_dems = {} # Process this batch
+            batch_combinations = all_combinations[batch_start:batch_end]
+            
+            for combination in batch_combinations:
+                losses_by_instruction_ix = {}
+                combination_event_probability = 1
+                for (instruction_ix, qubit, event_probability) in combination:
+                    combination_event_probability *= event_probability
+                    if instruction_ix not in losses_by_instruction_ix:
+                        losses_by_instruction_ix[instruction_ix] = [qubit]
+                    else:
+                        losses_by_instruction_ix[instruction_ix].append(qubit)
+
+                key = self._generate_unique_key(losses_by_instruction_ix)
+                if key not in circuit_comb_dems:
+                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(
+                        losses_by_instruction_ix=losses_by_instruction_ix,
+                        event_probability=combination_event_probability,
+                        full_filename=full_filename_batch
+                    )
+                    circuit_comb_dems[key] = hyperedges_matrix_dem
+
+            # Save the current batch results
+            try:
+                with open(full_filename_batch, 'wb') as file:
+                    pickle.dump((circuit_comb_dems, self.Meta_params), file)
+            except Exception as e:
+                print(f"Error saving batch {batch_start} to {batch_end}: {e}")
+                continue
+
+            # Clear memory after processing and saving each batch
+            del circuit_comb_dems, batch_combinations
+            print(f"Processed batch {batch_start // batch_size + 1}/{(total_combinations + batch_size - 1) // batch_size + 1}")
+
+        # Step 3: Combine all batch dictionaries into a single dictionary
+        print(f"Now we will combine all batches into one! taking batches in folder {batches_dir}")
+        combined_circuit_comb_dems = {}
+
+        for batch_file in os.listdir(batches_dir):
+            if batch_file.endswith('.pickle'):
+                try:
+                    with open(os.path.join(batches_dir, batch_file), 'rb') as file:
+                        batch_circuit_comb_dems, _ = pickle.load(file)
+                        combined_circuit_comb_dems.update(batch_circuit_comb_dems)
+                except Exception as e:
+                    print(f"Error loading batch file {batch_file}: {e}")
+                    continue
+                finally:
+                    # Clear memory after loading and updating the combined dictionary
+                    del batch_circuit_comb_dems
+
+        # Step 4: Save the combined dictionary to full_filename
+        try:
+            with open(full_filename, 'wb') as file:
+                pickle.dump((combined_circuit_comb_dems, self.Meta_params), file)
+        except Exception as e:
+            print(f"Error saving combined results to {full_filename}: {e}")
+
+        print(f"All batches combined and saved to {full_filename}")
+
+        # Step 5: Load the combined results into self.circuit_comb_dems
+        self.circuit_comb_dems.update(combined_circuit_comb_dems)  # merge
+
+        # Clear memory after loading combined results
+        del combined_circuit_comb_dems
+        
+        
         
         
     def preprocess_circuit(self, full_filename):
-        # GB's improvement: hyperedge matrix dont include event probability anymore
         # Here we look at the lifetimes of each qubit, to get all possible independent loss channels.
         # Each channel corresponds to a qubit lifetime and contains all potential loss places.
         # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
         if self.printing:
             print("Preprocessing all loss circuits, one time only and it will be saved for next times!")
         
-        
-        os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(full_filename), exist_ok=True)
 
         self.circuit_independent_dems = {}
         instruction_ix = 0
@@ -649,16 +784,16 @@ class MLE_Loss_Decoder:
                     for q in targets:
                         qubit = q.value
                         losses_by_instruction_ix = {instruction_ix: [qubit]}
-                        # num_potential_losses = 0
-                        # [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[qubit] if cycle[0] <= round_ix <= cycle[1]), None)
-                        # potential_rounds_for_loss_events = range(reset_round_ix, detection_round_ix+1)
-                        # for potential_round in potential_rounds_for_loss_events:
-                        #     round_instructions = self.rounds_by_ix[potential_round]
-                        #     round_offset = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < potential_round)
-                        #     losses_indices_in_round = [i + round_offset for i, instruction in enumerate(round_instructions) if instruction.name == 'I' and qubit in [q.value for q in instruction.targets_copy()]]
-                        #     num_potential_losses += len(losses_indices_in_round)
+                        num_potential_losses = 0
+                        [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[qubit] if cycle[0] <= round_ix <= cycle[1]), None)
+                        potential_rounds_for_loss_events = range(reset_round_ix, detection_round_ix+1)
+                        for potential_round in potential_rounds_for_loss_events:
+                            round_instructions = self.rounds_by_ix[potential_round]
+                            round_offset = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < potential_round)
+                            losses_indices_in_round = [i + round_offset for i, instruction in enumerate(round_instructions) if instruction.name == 'I' and qubit in [q.value for q in instruction.targets_copy()]]
+                            num_potential_losses += len(losses_indices_in_round)
                         
-                        hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability = 1, full_filename=full_filename) # GB: change event prob to 1
+                        hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability = 1/num_potential_losses, full_filename=full_filename)
                         # save into the file:
                         key = self._generate_unique_key(losses_by_instruction_ix)
                         self.circuit_independent_dems[key] = hyperedges_matrix_dem
@@ -668,11 +803,47 @@ class MLE_Loss_Decoder:
         with open(full_filename, 'wb') as file:
             pickle.dump((self.circuit_independent_dems, self.Meta_params), file)
 
-
+        
+        
+        
+    def get_all_potential_loss_locations_given_heralded_loss(self):
+        # Loop over all lost qubits and for each one, mark a potential loss event with a certain probability. old function, compatible only with theory.
+        self.potential_losses_by_instruction_index = {} # {(lost_q,loss_round_ix): {loss_instruction_ix: [lost_qubit, probability_of_this_event]}}
+        if self.printing:
+            print(f"self.lost_qubits_by_round_ix: {self.lost_qubits_by_round_ix}")
+        for round_ix in self.lost_qubits_by_round_ix:
+            lost_qubits_in_round = self.lost_qubits_by_round_ix[round_ix]
+            for lost_q in lost_qubits_in_round:
+                if (lost_q, round_ix) not in self.potential_losses_by_instruction_index:
+                    self.potential_losses_by_instruction_index[(lost_q, round_ix)] = {}
+                
+                num_potential_losses = 0
+                loss_indices = []
+                [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
+                # relevant_cycle_length = detection_round_ix - reset_round_ix + 1
+                potential_rounds_for_loss_events = range(reset_round_ix, detection_round_ix+1)
+                for potential_round in potential_rounds_for_loss_events:
+                    round_instructions = self.rounds_by_ix[potential_round]
+                    round_offset = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < potential_round)
+                    losses_indices_in_round = [i + round_offset for i, instruction in enumerate(round_instructions) if instruction.name == 'I' and lost_q in [q.value for q in instruction.targets_copy()]]
+                    for potential_loss_index in losses_indices_in_round:
+                        self.potential_losses_by_instruction_index[(lost_q, round_ix)][potential_loss_index] = [None, detection_round_ix] # loss index: prob, detection_round_ix
+                        num_potential_losses += 1
+                        loss_indices.append(potential_loss_index)
+                
+                if num_potential_losses > 0:
+                    loss_probability = 1 / num_potential_losses
+                    for potential_loss_index in loss_indices:
+                        self.potential_losses_by_instruction_index[(lost_q, round_ix)][potential_loss_index][0] = loss_probability
+        if self.printing:
+            print(f"potential_losses_by_instruction_index: {self.potential_losses_by_instruction_index}")
+    
     def get_all_potential_loss_locations_given_heralded_loss_new(self):
         # Loop over all lost qubits and for each one, mark a potential loss event with a certain probability
         self.potential_losses_by_instruction_index = {} # {(lost_q,loss_round_ix): {loss_instruction_ix: [lost_qubit, probability_of_this_event]}}
-
+        # if self.printing:
+        #     print(f"self.lost_qubits_by_round_ix: {self.lost_qubits_by_round_ix}")
+        
         for qubit in self.qubit_lifecycles_and_losses:
             qubit = int(qubit)
             qubit_lifecycles = self.qubit_lifecycles_and_losses[qubit]
@@ -681,16 +852,26 @@ class MLE_Loss_Decoder:
                 if lost_in_cycle: # qubit was lost somewhere in this lifecycles
                     if (qubit, detection_round_ix) not in self.potential_losses_by_instruction_index:
                         self.potential_losses_by_instruction_index[(qubit, detection_round_ix)] = {}
-
+                    num_potential_losses = 0
+                    loss_indices = []
                     potential_rounds_for_loss_events = range(reset_round_ix, detection_round_ix+1)
                     for potential_round in potential_rounds_for_loss_events:
                         round_instructions = self.rounds_by_ix[potential_round]
                         round_offset = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < potential_round)
                         losses_indices_in_round = [i + round_offset for i, instruction in enumerate(round_instructions) if instruction.name == 'I' and qubit in [q.value for q in instruction.targets_copy()]]
-                        
                         for potential_loss_index in losses_indices_in_round:
-                            loss_probability = self.circuit.loss_instruction_indices.get(potential_loss_index, 0)
-                            self.potential_losses_by_instruction_index[(qubit, detection_round_ix)][potential_loss_index] = [loss_probability, detection_round_ix] # loss index: prob, detection_round_ix         
+                            self.potential_losses_by_instruction_index[(qubit, detection_round_ix)][potential_loss_index] = [None, detection_round_ix] # loss index: prob, detection_round_ix
+                            num_potential_losses += 1
+                            loss_indices.append(potential_loss_index)
+                    
+                    if num_potential_losses > 0:
+                        loss_probability = 1 / num_potential_losses
+                        for potential_loss_index in loss_indices:
+                            self.potential_losses_by_instruction_index[(qubit, detection_round_ix)][potential_loss_index][0] = loss_probability
+                            
+                    else:
+                        stop = 0
+                        
         if self.printing:
             print(f"potential_losses_by_instruction_index: {self.potential_losses_by_instruction_index}")
     
@@ -702,14 +883,6 @@ class MLE_Loss_Decoder:
         Output: a list of dictionary, each one represent another combination of losses. 
         Each dictionary: key: instruction_ix, value: qubit
         """
-        # normalize the probabilities in each lifecycle to sum up to 1:
-        for (lost_q, round_ix) in potential_losses_by_instruction_index:
-            lifecycle_events = potential_losses_by_instruction_index[(lost_q, round_ix)]
-            total_probability = sum([p for [p,_] in list(lifecycle_events.values())])
-            for loss_index in lifecycle_events:
-                lifecycle_events[loss_index][0] = lifecycle_events[loss_index][0] / total_probability # update prob 
-        
-        
         potential_losses = [ [((lost_q, round_ix), potential_loss_index) + tuple(loss_info) for potential_loss_index, loss_info in potential_losses_by_instruction_index[(lost_q, round_ix)].items()]
         for (lost_q, round_ix) in potential_losses_by_instruction_index ]
         
@@ -724,50 +897,115 @@ class MLE_Loss_Decoder:
         
         # Convert each combination into the desired dictionary format
         combination_dicts = []
-        combination_events_probabilities = []
         for combination in all_combinations:
-            combination_event_probability = 1
             combination_dict = {}
             for (lost_q, round_ix), instruction_ix, probability, meas_round_ix in combination:
-                combination_event_probability *= probability
                 if instruction_ix not in combination_dict:
                     combination_dict[instruction_ix] = [lost_q]
                 else:
                     combination_dict[instruction_ix].append(lost_q)
             
             combination_dicts.append(combination_dict)
-            combination_events_probabilities.append(combination_event_probability)
         
-        return combination_dicts, combination_events_probabilities
+        return combination_dicts, combination_event_probability
 
+    
+    def generate_all_DEMs_and_sum_over_combinations(self, return_hyperedges_matrix=False, use_pre_processed_data=True):
+        # Now we generate many DEMs for every potential loss event combination and merge together in 2 steps in order to get 1 final DEM:
+        # event_probability is the probability for each loss event combination
+        
+        DEMs_loss_pauli_events = [self.Pauli_DEM_matrix] # list of all DEMs for every loss event + DEM for Pauli errors.
+        num_detectors = self.Pauli_DEM_matrix.shape[1]
+        hyperedges_matrix_loss_event = dok_matrix((0, num_detectors), dtype=float) # Initialize as dok_matrix for efficient incremental construction
+        
+        DEMs_loss_events = []
+        new_circuit_comb_dems = {} # new dems to save now
+        
+        for potential_loss_combination in self.all_potential_losses_combinations:
+            key = self._generate_unique_key(potential_loss_combination)
+            num_of_losses = len(potential_loss_combination)
+            if key in self.circuit_comb_dems:
+                hyperedges_matrix_dem = self.circuit_comb_dems[key]
+            else:
+                if self.printing:
+                    print(f"Combination {potential_loss_combination} not in dictionary. need to generate loss circuit")
+                hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = potential_loss_combination, event_probability=self.combination_event_probability)
+                self.circuit_comb_dems[key] = hyperedges_matrix_dem # new - save the new result into the dictionary with the preprocessed data!
+                
+                # Update the pre-processed data.
+                if num_of_losses in new_circuit_comb_dems:
+                    new_circuit_comb_dems[num_of_losses][key] = hyperedges_matrix_dem
+                else:
+                    new_circuit_comb_dems[num_of_losses] = {key: hyperedges_matrix_dem}
+                
+            DEMs_loss_events.append(hyperedges_matrix_dem)
+        
+        # Update the relevant file: DEBUG. Change this to save a dict according to num_losses and update together at the end!
+        if self.save_data_during_sim:
+            for num_of_losses, dem_dict in new_circuit_comb_dems.items():
+                full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
+                if os.path.exists(full_filename_dems):
+                    try:
+                        with open(full_filename_dems, 'rb') as file:
+                            current_circuit_comb_dems, _ = pickle.load(file)  # Get current dictionary.
+                    except (FileNotFoundError, EOFError):  # Added EOFError for corrupted files
+                        current_circuit_comb_dems = {}
+                else:
+                    current_circuit_comb_dems = {}
+
+                current_circuit_comb_dems.update(dem_dict)  # Update with new info.
+                
+                with open(full_filename_dems, 'wb') as file:
+                    pickle.dump((current_circuit_comb_dems, self.Meta_params), file)  # Update the file.
+
+                    
+                
+        # sum over all loss DEMs:
+        hyperedges_matrix_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_loss_events, num_detectors=num_detectors)
+        
+        # save the sum of the DEMs for this loss event in DEMs_loss_pauli_events
+        # hyperedges_matrix_loss_event = hyperedges_matrix_loss_event.tocsr()
+        DEMs_loss_pauli_events.append(hyperedges_matrix_loss_event)
+        
+        if self.printing:
+            print(f"After summing over all DEMs for potential loss combinations, we got the following DEM_loss:")
+            print(hyperedges_matrix_loss_event)
+                
+        # Step 2: sum over loss DEM + Pauli errors DEM, according to the high-order formula:
+        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors)
+
+        # Step 3: convert the final dem into rows:
+        if self.printing:
+            print(f"Final DEM matrix after combining all DEMs for losses and Pauli: {final_hyperedges_matrix}")
+
+        if return_hyperedges_matrix:
+            return final_hyperedges_matrix
+        else:
+            # Step 4: bring back the observables and create a stim.DEM object: 
+            final_dem = self.from_hyperedges_matrix_into_stim_dem(final_hyperedges_matrix)
+            return final_dem
+    
     
     def generate_all_DEMs_and_sum_over_independent_events(self, add_first_combination = False, use_pre_processed_data = True, return_hyperedges_matrix = False):
         # if add_first_combination = True, we add the DEM of the first loss combination (only if >1 loss event happened)
         # Now we generate many DEMs for every loss event and merge together in 2 steps in order to get 1 final DEM:
         DEMs_loss_pauli_events = [self.Pauli_DEM_matrix] # list of all DEMs for every loss event + DEM for Pauli errors. TODO: add here the Pauli DEM
-        Probs_loss_pauli_events = [1]
         num_detectors = self.Pauli_DEM_matrix.shape[1]                
         
         for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
             DEMs_specific_loss_event = []
-            Probs_specific_loss_event = [] # GB: new
-            total_probability = sum(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]) # CHECK
-            
-            for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]:
-                event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] / total_probability
+            for ix, potential_loss_ix in enumerate(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]):
+                [event_probability, detection_round_ix2] = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix]
                 losses_by_instruction_ix = {potential_loss_ix: [lost_q]}
                 key = self._generate_unique_key(losses_by_instruction_ix)
-                
                 if use_pre_processed_data and key in self.circuit_independent_dems:
                     hyperedges_matrix_dem = self.circuit_independent_dems[key]
                 else:
-                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=1) # GB: changed event prob to 1
-                DEMs_specific_loss_event.append(hyperedges_matrix_dem) # GB new: binary matrix
-                Probs_specific_loss_event.append(event_probability) # Gb: new
+                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=event_probability)
+                DEMs_specific_loss_event.append(hyperedges_matrix_dem)
             
-            DEM_specific_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
+            DEM_specific_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors)
             DEMs_loss_pauli_events.append(DEM_specific_loss_event)
-            Probs_loss_pauli_events.append(1)
             
             if self.printing:
                 print(f"After summing over all DEMs for potential loss events given the loss of qubit {lost_q}, which was detected in round {detection_round_ix}, we got the following DEM_i:")
@@ -777,22 +1015,19 @@ class MLE_Loss_Decoder:
             first_combination_dict = {}; combination_probability = 1
             for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
                 first_potential_loss_ix = min(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)].keys())
-                event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][first_potential_loss_ix][0]
+                [event_probability, detection_round_ix2] = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][first_potential_loss_ix]
                 combination_probability *= event_probability
                 if first_potential_loss_ix in first_combination_dict:
                     first_combination_dict[first_potential_loss_ix].append(lost_q)
                 else:
                     first_combination_dict[first_potential_loss_ix] = [lost_q]
-            
-            
             # adjust first_comb probability according to the input:
             updated_combination_probability = self.first_comb_weight if self.first_comb_weight > 0 else combination_probability
-            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = first_combination_dict, event_probability=1) # GB new: event prob=1
+            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = first_combination_dict, event_probability=updated_combination_probability)
             DEMs_loss_pauli_events.append(hyperedges_matrix_dem)
-            Probs_loss_pauli_events.append(updated_combination_probability)
             
         # sum over all loss DEMs:
-        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events) # GB: new Probs_loss_pauli_events. TODO: change this function to also get Probs_loss_pauli_events
+        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors)
                 
         if self.printing:
             print(f"After summing over all losses DEMS + Pauli DEM (high order equation), we got the final DEM for independent losses decoder:")
@@ -985,61 +1220,36 @@ class MLE_Loss_Decoder:
     
     from scipy.sparse import vstack, csr_matrix
 
+    def combine_DEMs_sum(self, DEMs_list, num_detectors):
+        # Stack all DEMs vertically
+        all_dems_stacked = vstack(DEMs_list, format='csr')
 
-    def combine_DEMs_sum(self, DEMs_list, num_detectors, Probs_list):
-        pattern_to_value = defaultdict(float)
+        # Sum duplicates after vertical stacking
+        all_dems_stacked.sum_duplicates()
 
-        for dem, prob in zip(DEMs_list, Probs_list):
-            dem = dem.tolil()  # Ensure the DEM is in LIL format for efficient row access
-            for i, (row, data) in enumerate(zip(dem.rows, dem.data)):
-                if data:  # Skip empty rows
-                    value = data[0] * prob  # Multiply by the event probability
-                    pattern = tuple(row)
-                    pattern_to_value[pattern] += value
-
-        # Build the final matrix
+        # Group by the pattern of non-zero columns
+        pattern_to_values = {}
+        for i in range(all_dems_stacked.shape[0]):
+            # Extract the row slice
+            row_data = all_dems_stacked.data[all_dems_stacked.indptr[i]:all_dems_stacked.indptr[i+1]][0]
+            row_indices = all_dems_stacked.indices[all_dems_stacked.indptr[i]:all_dems_stacked.indptr[i+1]]
+            # Create a hashable representation of the row
+            row_pattern = tuple(row_indices)
+            # Sum the values of rows that match this pattern
+            if row_pattern in pattern_to_values:
+                pattern_to_values[row_pattern] += row_data
+            else:
+                pattern_to_values[row_pattern] = row_data
+            
+        # Finally, we can build the final matrix
         final_matrix = lil_matrix((0, num_detectors), dtype=float)
-        for pattern, value in pattern_to_value.items():
+        for pattern, value in pattern_to_values.items():
             new_row = np.zeros(num_detectors, dtype=float)
             new_row[list(pattern)] = value
             final_matrix.resize((final_matrix.shape[0] + 1, num_detectors))
             final_matrix[-1, :] = new_row
-
+            
         return final_matrix
-
-
-    # def combine_DEMs_sum(self, DEMs_list, num_detectors):
-    # old function, don't use Probs_list.
-    #     # Stack all DEMs vertically
-    #     all_dems_stacked = vstack(DEMs_list, format='csr')
-
-    #     # Sum duplicates after vertical stacking
-    #     all_dems_stacked.sum_duplicates()
-
-    #     # Group by the pattern of non-zero columns
-    #     pattern_to_values = {}
-    #     for i in range(all_dems_stacked.shape[0]):
-    #         # Extract the row slice
-    #         row_data = all_dems_stacked.data[all_dems_stacked.indptr[i]:all_dems_stacked.indptr[i+1]][0]
-    #         row_indices = all_dems_stacked.indices[all_dems_stacked.indptr[i]:all_dems_stacked.indptr[i+1]]
-    #         # Create a hashable representation of the row
-    #         row_pattern = tuple(row_indices)
-    #         # Sum the values of rows that match this pattern
-    #         if row_pattern in pattern_to_values:
-    #             pattern_to_values[row_pattern] += row_data
-    #         else:
-    #             pattern_to_values[row_pattern] = row_data
-            
-    #     # Finally, we can build the final matrix
-    #     final_matrix = lil_matrix((0, num_detectors), dtype=float)
-    #     for pattern, value in pattern_to_values.items():
-    #         new_row = np.zeros(num_detectors, dtype=float)
-    #         new_row[list(pattern)] = value
-    #         final_matrix.resize((final_matrix.shape[0] + 1, num_detectors))
-    #         final_matrix[-1, :] = new_row
-            
-    #     return final_matrix
-
 
 
     def convert_dem_into_hyperedges_matrix(self, dem, event_probability, observables_converted_to_detectors=False):
@@ -1077,11 +1287,8 @@ class MLE_Loss_Decoder:
             return hyperedges_matrix, observables_errors_interactions
 
 
-
-    def combine_DEMs_high_order(self, DEMs_list, num_detectors, Probs_list):
+    def combine_DEMs_high_order(self, DEMs_list, num_detectors):
         # Assuming 'DEMs_list' is a list of lil_matrix objects, each representing a DEM for a loss event and one DEM for Pauli events.
-        # 'Probs_loss_pauli_events' is a list of probabilities corresponding to each DEM.
-        
         # We will first convert each sparse matrix row to a hashable tuple of (row_index, column_indices, value)
 
         # This function will convert the rows of a lil_matrix into a hashable format
@@ -1096,12 +1303,12 @@ class MLE_Loss_Decoder:
 
         # Now we can convert all matrices and merge rows with the same pattern
         pattern_to_values = {}
-        for matrix, prob in zip(DEMs_list, Probs_list):
+        for matrix in DEMs_list:
             for pattern, (ridx, value) in convert_rows(matrix).items():
                 if pattern in pattern_to_values:
-                    pattern_to_values[pattern].append(value * prob)
+                    pattern_to_values[pattern].append(value)
                 else:
-                    pattern_to_values[pattern] = [value * prob]
+                    pattern_to_values[pattern] = [value]
 
         # Now we can apply the formula of high-order probability sum to combine the values for each pattern
         final_rows = {}
@@ -1284,230 +1491,3 @@ class MLE_Loss_Decoder:
             if qubit_active_cycle[q] is not None:
                 self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
 
-
-
-####################################################################################: COMBINATION DECODER FUNCTIONS ####################################################################################:
-
-
-    def generate_all_DEMs_and_sum_over_combinations(self, return_hyperedges_matrix=False, use_pre_processed_data=True):
-        # Now we generate many DEMs for every potential loss event combination and merge together in 2 steps in order to get 1 final DEM:
-        # event_probability is the probability for each loss event combination
-        
-        DEMs_loss_pauli_events = [self.Pauli_DEM_matrix] # list of all DEMs for every loss event + DEM for Pauli errors.
-        Probs_loss_pauli_list = [1]
-        num_detectors = self.Pauli_DEM_matrix.shape[1]
-        hyperedges_matrix_loss_event = dok_matrix((0, num_detectors), dtype=float) # Initialize as dok_matrix for efficient incremental construction
-        
-        DEMs_loss_events = []
-        new_circuit_comb_dems = {} # new dems to save now
-        Probs_loss_events_list = []
-        
-        for (potential_loss_combination, event_comb_prob) in zip(self.all_potential_losses_combinations, self.combinations_events_probabilities):
-            key = self._generate_unique_key(potential_loss_combination)
-            num_of_losses = len(potential_loss_combination)
-            if key in self.circuit_comb_dems:
-                hyperedges_matrix_dem = self.circuit_comb_dems[key]
-            else:
-                if self.printing:
-                    print(f"Combination {potential_loss_combination} not in dictionary. need to generate loss circuit")
-                hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = potential_loss_combination, event_probability=1)
-                self.circuit_comb_dems[key] = hyperedges_matrix_dem # new - save the new result into the dictionary with the preprocessed data!
-                
-                # Update the pre-processed data.
-                if num_of_losses in new_circuit_comb_dems:
-                    new_circuit_comb_dems[num_of_losses][key] = hyperedges_matrix_dem
-                else:
-                    new_circuit_comb_dems[num_of_losses] = {key: hyperedges_matrix_dem}
-            
-            DEMs_loss_events.append(hyperedges_matrix_dem)
-            Probs_loss_events_list.append(event_comb_prob)
-        
-        # Update the relevant file: DEBUG. Change this to save a dict according to num_losses and update together at the end!
-        if self.save_data_during_sim:
-            for num_of_losses, dem_dict in new_circuit_comb_dems.items():
-                full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
-                if os.path.exists(full_filename_dems):
-                    try:
-                        with open(full_filename_dems, 'rb') as file:
-                            current_circuit_comb_dems, _ = pickle.load(file)  # Get current dictionary.
-                    except (FileNotFoundError, EOFError):  # Added EOFError for corrupted files
-                        current_circuit_comb_dems = {}
-                else:
-                    current_circuit_comb_dems = {}
-
-                current_circuit_comb_dems.update(dem_dict)  # Update with new info.
-                
-                with open(full_filename_dems, 'wb') as file:
-                    pickle.dump((current_circuit_comb_dems, self.Meta_params), file)  # Update the file.
-
-                    
-                
-        # sum over all loss DEMs:
-        hyperedges_matrix_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_loss_events, num_detectors=num_detectors, Probs_list=Probs_loss_events_list)
-        
-        # save the sum of the DEMs for this loss event in DEMs_loss_pauli_events
-        # hyperedges_matrix_loss_event = hyperedges_matrix_loss_event.tocsr()
-        DEMs_loss_pauli_events.append(hyperedges_matrix_loss_event)
-        Probs_loss_pauli_list.append(1)
-        
-        if self.printing:
-            print(f"After summing over all DEMs for potential loss combinations, we got the following DEM_loss:")
-            print(hyperedges_matrix_loss_event)
-                
-        # Step 2: sum over loss DEM + Pauli errors DEM, according to the high-order formula:
-        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_list)
-
-        # Step 3: convert the final dem into rows:
-        if self.printing:
-            print(f"Final DEM matrix after combining all DEMs for losses and Pauli: {final_hyperedges_matrix}")
-
-        if return_hyperedges_matrix:
-            return final_hyperedges_matrix
-        else:
-            # Step 4: bring back the observables and create a stim.DEM object: 
-            final_dem = self.from_hyperedges_matrix_into_stim_dem(final_hyperedges_matrix)
-            return final_dem
-
-
-
-
-
-    def preprocess_circuit_comb(self, full_filename, num_of_losses=1, all_potential_loss_qubits_indices=[]):
-        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
-        # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
-        # Also, we generate all DEMs for combinations of qubit losses.
-        # num_of_losses = how many loss events are they. If 1 --> same as independent function.
-        
-        start_time = time.time()
-        os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
-                
-        ### Step 1: get all lost events:
-        # already implemented before once, we get all_potential_loss_qubits_indices.
-                
-        
-        ### Step 2: get all combinations with num_of_losses losses:
-        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
-        total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.05))
-    
-        ### Step 3: process all combinations:
-        circuit_comb_dems = {}
-        for combination in all_combinations:
-            losses_by_instruction_ix = {}
-            # combination_event_probability = 1
-            for (instruction_ix, qubit, event_probability) in combination:
-                # combination_event_probability *= event_probability
-                if instruction_ix not in losses_by_instruction_ix:
-                    losses_by_instruction_ix[instruction_ix] = [qubit]
-                else:
-                    losses_by_instruction_ix[instruction_ix].append(qubit)
-            
-            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=1, full_filename=full_filename) # GB's improvement: event prob is 1 for preprocessing step
-            key = self._generate_unique_key(losses_by_instruction_ix)
-            circuit_comb_dems[key] = hyperedges_matrix_dem
-                        
-        end_time = time.time()
-        print(f"building all {len(all_combinations)} loss circuits for {num_of_losses} losses took {end_time - start_time} sec. Saving the result!")
-        
-        with open(full_filename, 'wb') as file:
-            pickle.dump((circuit_comb_dems, self.Meta_params), file)
-        
-        # combine into the full dictionary with all num_of_losses dems
-        self.circuit_comb_dems.update(circuit_comb_dems)
-        
-        
-        
-        
-        
-        
-    def preprocess_circuit_comb_batches(self, full_filename, num_of_losses=1, all_potential_loss_qubits_indices=[]):
-        # Here we look at the lifetimes of each qubit, to get all possible independent loss channels. Each channel corresponds to a qubit lifetime and contains all potential loss places.
-        # We would like to generate a DEM for the loss of every single qubit in every location of the circuit and save it.
-        # Also, we generate all DEMs for combinations of qubit losses.
-        # num_of_losses = how many loss events are they. If 1 --> same as independent function.
-        
-        batches_dir = f'{self.loss_decoder_files_dir}/batches_{num_of_losses}'
-        os.makedirs(batches_dir, exist_ok=True)  # Ensure the batch directory exists
-
-
-        # Step 1: Get all combinations with num_of_losses losses
-        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
-        total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.05))
-        print(f"For dx={self.dx}, dy={self.dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
-
-        # Step 2: Process all combinations in batches
-        for batch_start in range(0, total_combinations, batch_size):
-            batch_end = min(batch_start + batch_size, total_combinations)
-            full_filename_batch = f'{batches_dir}/batch_{batch_start}_to_{batch_end}.pickle'
-            
-            # Check if this batch was already processed
-            if os.path.exists(full_filename_batch):
-                print(f"Batch {batch_start} to {batch_end} already processed. Skipping.")
-                continue # Continue to the next batch
-
-            circuit_comb_dems = {} # Process this batch
-            batch_combinations = all_combinations[batch_start:batch_end]
-            
-            for combination in batch_combinations:
-                losses_by_instruction_ix = {}
-                # combination_event_probability = 1
-                for (instruction_ix, qubit, event_probability) in combination:
-                    # combination_event_probability *= event_probability
-                    if instruction_ix not in losses_by_instruction_ix:
-                        losses_by_instruction_ix[instruction_ix] = [qubit]
-                    else:
-                        losses_by_instruction_ix[instruction_ix].append(qubit)
-
-                key = self._generate_unique_key(losses_by_instruction_ix)
-                if key not in circuit_comb_dems:
-                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(
-                        losses_by_instruction_ix=losses_by_instruction_ix,
-                        event_probability=1,
-                        full_filename=full_filename_batch
-                    ) # GB: event prob = 1 for preprocessing
-                    circuit_comb_dems[key] = hyperedges_matrix_dem
-
-            # Save the current batch results
-            try:
-                with open(full_filename_batch, 'wb') as file:
-                    pickle.dump((circuit_comb_dems, self.Meta_params), file)
-            except Exception as e:
-                print(f"Error saving batch {batch_start} to {batch_end}: {e}")
-                continue
-
-            # Clear memory after processing and saving each batch
-            del circuit_comb_dems, batch_combinations
-            print(f"Processed batch {batch_start // batch_size + 1}/{(total_combinations + batch_size - 1) // batch_size + 1}")
-
-        # Step 3: Combine all batch dictionaries into a single dictionary
-        print(f"Now we will combine all batches into one! taking batches in folder {batches_dir}")
-        combined_circuit_comb_dems = {}
-
-        for batch_file in os.listdir(batches_dir):
-            if batch_file.endswith('.pickle'):
-                try:
-                    with open(os.path.join(batches_dir, batch_file), 'rb') as file:
-                        batch_circuit_comb_dems, _ = pickle.load(file)
-                        combined_circuit_comb_dems.update(batch_circuit_comb_dems)
-                except Exception as e:
-                    print(f"Error loading batch file {batch_file}: {e}")
-                    continue
-                finally:
-                    # Clear memory after loading and updating the combined dictionary
-                    del batch_circuit_comb_dems
-
-        # Step 4: Save the combined dictionary to full_filename
-        try:
-            with open(full_filename, 'wb') as file:
-                pickle.dump((combined_circuit_comb_dems, self.Meta_params), file)
-        except Exception as e:
-            print(f"Error saving combined results to {full_filename}: {e}")
-
-        print(f"All batches combined and saved to {full_filename}")
-
-        # Step 5: Load the combined results into self.circuit_comb_dems
-        self.circuit_comb_dems.update(combined_circuit_comb_dems)  # merge
-
-        # Clear memory after loading combined results
-        del combined_circuit_comb_dems
