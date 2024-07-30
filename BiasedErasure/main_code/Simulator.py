@@ -354,7 +354,7 @@ class Simulator:
     
     
     
-    def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True):
+    def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True, add_first_combination=True, remove_gates_due_to_loss=True):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
@@ -406,9 +406,10 @@ class Simulator:
             loss_sampling = 1 # how many times we will use the same loss sampling result
             num_loss_shots = math.ceil(num_shots / loss_sampling)
             num_shots = num_loss_shots * loss_sampling
-        
+            
+            start_time = time.time()
             MLE_Loss_Decoder_class.initialize_loss_decoder() # this part can be improved to be a bit faster
-            print('Decoder initialised')      
+            print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
             
             # Loss decoding - creating DEMs:
             dems_list = []
@@ -418,10 +419,16 @@ class Simulator:
             for shot in range(num_loss_shots):
                 print(shot, end = " ")
                 measurement_event = measurement_events[shot] # change it to measurements
-                final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event) # final_dem_hyperedges_matrix doesn't contain observables, only detectors               
+                
+                start_time = time.time()
+                final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event, add_first_combination, remove_gates_due_to_loss) # final_dem_hyperedges_matrix doesn't contain observables, only detectors               
+                # print(f'Total loss decoder time per shot is {time.time() - start_time:.2f}s.')      
+                
                 observables_errors_interactions_lists.append(observables_errors_interactions)
                 if self.decoder == "MLE":
+                    start_time = time.time()
                     final_dem_hyperedges_matrix, probs_list = MLE_Loss_Decoder_class.convert_hyperedge_matrix_into_binary(hyperedges_matrix = final_dem_hyperedges_matrix)
+                    # print(f'MLE gurobi decoding time per shot took {time.time() - start_time:.2f}s.')      
                     dems_list.append(final_dem_hyperedges_matrix)
                     probs_lists.append(probs_list)
                 else:
@@ -486,10 +493,7 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            # measurement_events[measurement_events == 2] = 0 #change all values in detection_events from 2 to 0
-            # measurement_events = measurement_events.astype(np.bool_)
-            # detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
-            
+
             # add normalization step of detection events:
             detection_events_int = detection_events.astype(np.int32)
             detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
@@ -512,6 +516,175 @@ class Simulator:
             # predictions_bool = predictions.astype(bool).squeeze()
             return predictions, observable_flips, detector_error_model
         
+
+    
+    def make_dem_SSR_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray):
+        """This function decodes the loss information using mle. 
+        Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
+        We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
+        Input: Meta_params, dx, dy, num shots, experimental data: detector shots.
+        Output: final DEM, corrections, num errors.
+        
+        Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': 'X', 'bias_preserving_gates': 'False', 
+                'noise': 'atom_array', 'is_erasure_biased': 'False', 'LD_freq': '1', 'LD_method': 'SWAP', 'SSR': 'True', 'cycles': '2', 'ordering': 'bad', 'decoder': 'MLE',
+                'circuit_type': 'memory', 'printing': 'False', 'num_logicals': '1'}
+        ordering: bad or fowler (good)
+        decoder: MLE or MWPM
+        """
+        
+        # Step 1 - generate the experimental circuit in our simulation:
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
+        
+        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
+        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+        
+
+        # LogicalCircuit.logical_qubits[0].visualize_code()
+        # loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
+        #                                                             basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
+        #                                                             phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+        #                                                             SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
+        
+        
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
+                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
+                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
+                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
+        
+        # if self.loss_detection_method_str == 'SWAP':
+        #     SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
+        #     if self.printing:
+        #         print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
+        #     loss_detection_class.SWAP_circuit = SWAP_circuit
+        #     MLE_Loss_Decoder_class.circuit = SWAP_circuit
+        
+        # elif self.loss_detection_method_str == 'FREE':
+        #     MLE_Loss_Decoder_class.circuit = LogicalCircuit
+        
+        MLE_Loss_Decoder_class.circuit = LogicalCircuit
+        MLE_Loss_Decoder_class.generate_measurement_ix_to_instruction_ix_map() # mapping between measurement events to instruction ix
+        
+        if self.printing:
+            print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+            
+        if 2 in measurement_events:
+            loss_sampling = 1 # how many times we will use the same loss sampling result
+            num_loss_shots = math.ceil(num_shots / loss_sampling)
+            num_shots = num_loss_shots * loss_sampling
+            
+            # start_time = time.time()
+            # MLE_Loss_Decoder_class.initialize_loss_decoder() # this part can be improved to be a bit faster
+            # print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
+            
+            # Loss decoding - creating DEMs:
+            dems_list = []
+            valid_measurement_events = []
+            # probs_lists = []
+            # observables_errors_interactions_lists = []
+            print("Shot:", end = " ")
+            for shot in range(num_loss_shots):
+                print(shot, end = " ")
+                measurement_event = measurement_events[shot] # change it to measurements
+                
+                # start_time = time.time()
+                stim_dem_supercheck, dont_use_shot = MLE_Loss_Decoder_class.make_stim_dem_supercheck_given_loss(measurement_event)
+                if not dont_use_shot:
+                    dems_list.append(stim_dem_supercheck)
+                    valid_measurement_events.append(measurement_event)
+                # final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event, add_first_combination, remove_gates_due_to_loss) # final_dem_hyperedges_matrix doesn't contain observables, only detectors               
+                # print(f'Total loss decoder time per shot is {time.time() - start_time:.2f}s.')      
+                
+                # observables_errors_interactions_lists.append(observables_errors_interactions)
+                # if self.decoder == "MLE":
+                #     start_time = time.time()
+                #     final_dem_hyperedges_matrix, probs_list = MLE_Loss_Decoder_class.convert_hyperedge_matrix_into_binary(hyperedges_matrix = final_dem_hyperedges_matrix)
+                #     # print(f'MLE gurobi decoding time per shot took {time.time() - start_time:.2f}s.')      
+                #     dems_list.append(final_dem_hyperedges_matrix)
+                #     probs_lists.append(probs_list)
+                # else:
+                #     final_dem = MLE_Loss_Decoder_class.from_hyperedges_matrix_into_stim_dem(final_dem_hyperedges_matrix) # convert into stim format. #TODO: bug - fix it! here final_dem_hyperedges_matrix doesn't contain observables so the DEM will not contain them.
+                #     dems_list.append(final_dem)
+                    
+                # if self.printing:
+                #     print("\n MLE DEM hyperedges matrix:")
+                #     print(final_dem_hyperedges_matrix)
+            print(f"\n left {len(valid_measurement_events)} valid shots out of {len(measurement_events)} shots!")
+            valid_measurement_events = np.array(valid_measurement_events)
+            measurement_events_no_loss = valid_measurement_events.copy() 
+            # measurement_events_no_loss = measurement_events.copy() 
+            measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+            # add normalization step of detection events:
+            detection_events_int = detection_events.astype(np.int32)
+            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            detection_events = detection_events_flipped.astype(np.bool_)
+            
+
+            # # Creating the predictions using the DEM:
+            # if self.decoder == "MLE":
+            #     predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_fast(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
+            #     # save an example for Maddie:
+            #     # full_filename = f"{self.output_dir}/example_for_maddie.pickle"
+            #     # with open(full_filename, 'wb') as file:
+            #     #     pickle.dump((dems_list, probs_lists, detection_events, observables_errors_interactions_lists), file)
+            
+            
+            # else:
+            #     predictions = []
+            #     for (d, detection_event) in enumerate(detection_events):
+            #         detector_error_model = dems_list[d]
+            #         matching = pymatching.Matching.from_detector_error_model(detector_error_model)
+            #         prediction = matching.decode_batch(detection_event)
+            #         # prediction = matching.decode(detection_event)
+            #         predictions.append(prediction[0][0])
+            
+            # num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            # if self.printing:
+            #     print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+            # # predictions_bool = predictions.astype(bool).squeeze()
+            # return predictions, observable_flips, dems_list
+        
+            return dems_list, detection_events, observable_flips
+        
+        
+        else: # regular decoding, without delayed erasure decoder
+            measurement_events_no_loss = measurement_events.copy() 
+            measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
+            measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+            detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+
+            # add normalization step of detection events:
+            detection_events_int = detection_events.astype(np.int32)
+            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
+            detection_events = detection_events_flipped.astype(np.bool_)
+            
+            if self.decoder == "MLE":
+                detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
+                predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model, detector_shots = detection_events)
+            else:
+                detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True, ignore_decomposition_failures=True) 
+                predictions = sinter.predict_observables(
+                    dem=detector_error_model,
+                    dets=detection_events,
+                    decoder='pymatching',
+                )
+
+            num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            if self.printing:
+                print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+            # predictions_bool = predictions.astype(bool).squeeze()
+            return predictions, observable_flips, detector_error_model
+        
+        
+        
+        
+        
+
 
 
     def count_logical_errors_preselection(self, num_shots: int, dx=None, dy=None, phys_error=0, debugging=False, cycles=None):

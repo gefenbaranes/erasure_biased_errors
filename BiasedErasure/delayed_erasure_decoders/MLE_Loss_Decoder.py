@@ -43,6 +43,7 @@ class MLE_Loss_Decoder:
         
         print(self.loss_decoder_files_dir)
         self.measurement_map = {}
+        self.measurement_ix_to_ins_ix = {}
         self.decoder_type = Meta_params['loss_decoder']
         self.loss_detection_method_str = loss_detection_method_str
         self.losses_to_detectors = []
@@ -99,7 +100,51 @@ class MLE_Loss_Decoder:
                 loss_index += len(instruction.targets_copy())
 
 
+
+    # def preprocess_all_SSR_loss_circuits(self, **kargs):
+        # we want to look at a circuit, take all options of loss upon measurement, and for each options generate the stim circuit for this option.
+        # save all into a dictionary of stim dems
+        
+        
+        # self.set_up_Pauli_DEM()
+        # self.rounds_by_ix = self.split_stim_circuit_into_rounds()
+        # self.generate_loss_instruction_indices() # setup self.circuit.loss_instruction_indices
+        # self.generate_measurement_map() # fill out self.measurement_map {measurement_index: (qubit, round_index)}
+        # fill out self.qubit_lifecycles_and_losses (without the losses for now):
+        
+        # if self.loss_detection_method_str == 'MBQC':
+        #     self.get_qubits_lifecycles_MBQC()
+        # elif self.loss_detection_method_str == 'SWAP':
+        #     self.get_qubits_lifecycles_SWAP() 
+        # elif self.loss_detection_method_str == 'FREE':
+        #     self.get_qubits_lifecycles_FREE()
+            
+        # # self.qubit_lifecycles_and_losses_init = copy.deepcopy(self.qubit_lifecycles_and_losses)
+        
+        # if self.printing:
+        #     print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
+        
+        
+        # if self.decoder_type ==  'only_ssr': # takes into account SSR information only:
+        #     full_filename_dems = f'{self.loss_decoder_files_dir}/dems_SSR_all_options.pickle'
+        #     if not os.path.exists(full_filename_dems): # If needed - preprocess this circuit to get all relevant DEMs
+        #         if self.printing:
+        #             print("Loss circuits need to be generated for these parameters. Starting pre-processing!")
+                
+        #         start_time = time.time()
+        #         self.preprocess_circuit_only_SSR(full_filename = full_filename_dems)
+        #         print(f'Preprocessing is done! it took {time.time() - start_time:.2f}s')      
+        #     else:
+        #         try:
+        #             with open(full_filename_dems, 'rb') as file:
+        #                 self.dems_stim_only_SSR, _ = pickle.load(file) # Load the data from the file
+        #         except EOFError as e:
+        #             print(f"EOFError: {e}. The file {full_filename_dems} might be corrupted. Regenerating the file.")
+        #             self.preprocess_circuit_only_SSR(full_filename=full_filename_dems)
+                    
+                    
     def initialize_loss_decoder(self, **kargs):
+
         self.set_up_Pauli_DEM()
         self.rounds_by_ix = self.split_stim_circuit_into_rounds()
         self.generate_loss_instruction_indices() # setup self.circuit.loss_instruction_indices
@@ -118,12 +163,16 @@ class MLE_Loss_Decoder:
         if self.printing:
             print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
         
+    
         if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
             full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_1_losses.pickle'
             if not os.path.exists(full_filename_dems): # If needed - preprocess this circuit to get all relevant DEMs
                 if self.printing:
                     print("Loss circuits need to be generated for these parameters. Starting pre-processing!")
+                
+                start_time = time.time()
                 self.preprocess_circuit(full_filename = full_filename_dems)
+                print(f'Preprocessing is done! it took {time.time() - start_time:.2f}s')      
             else:
                 try:
                     with open(full_filename_dems, 'rb') as file:
@@ -193,7 +242,7 @@ class MLE_Loss_Decoder:
             
 
             # Step 1 - generate the circuit that is really running in the experiment, for the given loss pattern (without gates after losing qubits):
-            experimental_circuit = self.generate_loss_circuit(losses_by_instruction_ix = self.real_losses_by_instruction_ix, removing_Pauli_errors=False)
+            experimental_circuit = self.generate_loss_circuit(losses_by_instruction_ix = self.real_losses_by_instruction_ix, removing_Pauli_errors=False, remove_gates_due_to_loss=True)
         
             # Step 2 - get all possible loss locations (and save in self.potential_losses_by_instruction_index[(lost_q, round_ix)])
             # self.get_all_potential_loss_locations_given_heralded_loss()
@@ -226,7 +275,7 @@ class MLE_Loss_Decoder:
     
     
     
-    def generate_dem_loss_mle_experiment(self, measurement_event):
+    def generate_dem_loss_mle_experiment(self, measurement_event, add_first_combination, remove_gates_due_to_loss):
         """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 
         1. experimental measurement circuit. 2. Theory decoding circuit. """
         
@@ -234,19 +283,28 @@ class MLE_Loss_Decoder:
         
         shot_had_a_loss = 2 in measurement_event
         if shot_had_a_loss:
+            
             # Step 1 - find out which qubit was lost in which round:
-            # changed to deepcopy by SG on 2024/06/20
+            start_time = time.time()
             self.qubit_lifecycles_and_losses = copy.deepcopy(self.qubit_lifecycles_and_losses_init)#.copy() # init self.qubit_lifecycles_and_losses for this shot
             self.update_lifecycle_from_detections(detection_event=measurement_event) # update self.qubit_lifecycles_and_losses according to measurement_events
             if self.printing:
                 print(f"lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
 
+            # print(f'Updating lifecycles according to SSR information took {time.time() - start_time:.5f}s')      
+            
+            
             # Step 2 - get all possible loss locations (and save in self.potential_losses_by_instruction_index[(lost_q, round_ix)])
+            start_time = time.time()
             self.get_all_potential_loss_locations_given_heralded_loss_new()
+            # print(f'Getting all potential loss locations according to SSR information took {time.time() - start_time:.5f}s')      
 
             # Step 3 - choose a decoder type:
             if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
-                final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_independent_events(add_first_combination = True, return_hyperedges_matrix=True)
+                start_time = time.time()
+                final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_independent_events(add_first_combination = add_first_combination, 
+                                                                    return_hyperedges_matrix=True, remove_gates_due_to_loss=remove_gates_due_to_loss)
+                # print(f'Summing over all relevant DEMs to generate the final DEM took {time.time() - start_time:.5f}s')      
             
             else:
                 # All combination decoder:
@@ -263,11 +321,117 @@ class MLE_Loss_Decoder:
             
         
         # Final step - remove observabes from hyperedgesmatrix and create a list of lists of errors that affect observables
+        start_time = time.time()
         final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
+        # print(f'Convert detectors back to observables and create list observables_errors_interactions took {time.time() - start_time:.5f}s')      
             
         return final_dem_hyperedges_matrix, observables_errors_interactions
 
     
+    
+    def make_stim_dem_supercheck_given_loss(self, measurement_event):
+        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
+        
+        shot_had_a_loss = 2 in measurement_event
+        
+        if shot_had_a_loss:
+            
+            # step 1 - generate the circuit with RX before heralded loss measurement:
+            experimental_circuit, _ = self.add_RX_before_heralded_loss(measurement_event)
+            
+            # step 2 - make observables into detectors(warning - we assume that the observables are on the last instruction, to make it faster. we can change it but it will be slower.)
+            try:
+                final_dem = experimental_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
+                dont_use_shot = False
+            except:
+                final_dem = 0
+                dont_use_shot = True
+            # TODO: important: fill-out a dictionary of DEMs given this heralded measurement. if it exists --> just use it. self.stim_dems_given_heralded_loss
+
+            return final_dem, dont_use_shot
+                
+        else: # no losses in this shot
+            experimental_circuit = self.circuit.copy()
+            final_dem = experimental_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)        
+            dont_use_shot = False
+        
+        
+        return final_dem, dont_use_shot
+
+    def add_RX_before_heralded_loss_method2(self, measurement_event):
+        
+        loss_measurements = [i for i , meas in enumerate(measurement_event) if meas==2] # checking which measurement indices had a hit for loss
+        
+        instructions_ix_with_loss = [self.measurement_ix_to_ins_ix[loss] for loss in loss_measurements] # getting the sitm instructions for these losses
+        instructions_ix_with_loss.sort(reverse=True)
+        
+        
+        heralded_circuit_before = self.circuit[:instructions_ix_with_loss[0]] # take the circuit before the first measurement
+        heralded_circuit_after = self.circuit[instructions_ix_with_loss[-1]:] # take the circuit after the final measurement
+
+        heralded_circuit_middle = stim.Circuit()
+        # change the part in the middle
+        for ix, instruction in enumerate(self.circuit[instructions_ix_with_loss[0]:instructions_ix_with_loss[-1]]):
+            instruction_ix = ix + instructions_ix_with_loss[0]
+            if instruction_ix in instructions_ix_with_loss: # need to add here RX
+                (instruction_ix, lost_qubit) = self.measurement_ix_to_ins_ix[instruction_ix] # TODO: not good
+                heralded_circuit_middle.append('RX', [lost_qubit])
+
+        
+        heralded_circuit = heralded_circuit_before + heralded_circuit_middle + heralded_circuit_after
+
+        return heralded_circuit
+
+
+    def add_RX_before_heralded_loss(self, measurement_event):
+        # Identify the locations where instructions need to be inserted
+        loss_measurements = [i for i , meas in enumerate(measurement_event) if meas==2] # checking which measurement indices had a hit for loss
+
+        # Convert the circuit string to a list of lines
+        circuit_lines = str(self.circuit).strip().split('\n')
+
+        # Prepare a list of (index, new instruction) tuples
+        insertions = [
+            (self.measurement_ix_to_ins_ix[loss_ins][0], f'RX {self.measurement_ix_to_ins_ix[loss_ins][1]}')
+            for loss_ins in loss_measurements
+        ]
+
+        # Sort insertions by index to maintain order
+        insertions.sort(key=lambda x: x[0])
+
+        # Prepare the result list
+        result = []
+        insertion_offset = 0
+
+        circuit_length = len(circuit_lines)
+        insertions_length = len(insertions)
+        total_length = circuit_length + insertions_length - 1  # Last index in the combined length
+
+        for i in range(circuit_length + insertions_length):
+            # if i == total_length:
+            #     # make observable into detector
+            #     instruction = circuit_lines[-1]
+            #     obs_targets = ' '.join([str(t) for t in instruction.targets_copy()])
+            #     result.append(f'DETECTOR {obs_targets}')
+
+            if insertion_offset < len(insertions) and i == insertions[insertion_offset][0] + insertion_offset:
+                result.append(insertions[insertion_offset][1])
+                insertion_offset += 1
+            else:
+                result.append(circuit_lines[i - insertion_offset])
+
+        # Join the lines back into a single string
+        updated_circuit_str = '\n'.join(result)
+        heralded_circuit = stim.Circuit(updated_circuit_str)
+        
+        
+        obs_targets = 0
+        return heralded_circuit, obs_targets
+
+
+
+            
+
     def update_lifecycle_from_detections(self, detection_event):
         # Updating self.qubit_lifecycles_and_losses[qubit] and write lifecycle[2] = True when the qubit is lost in this lifecycle
         # self.lost_qubits_by_round_ix = {}
@@ -297,7 +461,20 @@ class MLE_Loss_Decoder:
                         measurement_index += 1
         
         
-        
+    def generate_measurement_ix_to_instruction_ix_map(self):
+        # Build a mapping from measurement indices to qubits and measurement rounds. 
+        # self.measurement_map[measurement_index] = (instruction_ix, qubit)
+        self.measurement_ix_to_ins_ix = {}
+        measurement_index = 0
+        # Assume self.rounds_by_ix has the form {round_index: [instruction_list], ...}
+        for instruction_ix, instruction in enumerate(self.circuit):
+            if instruction.name in ['M', 'MX']:  # Check if it's a measurement instruction
+                targets = instruction.targets_copy()
+                for qubit in targets:
+                    self.measurement_ix_to_ins_ix[measurement_index] = (instruction_ix, qubit.value)
+                    measurement_index += 1
+                    
+                        
     def split_stim_circuit_into_rounds(self):
         # Takes self.circuit and decompose into cycles
         rounds = {}
@@ -521,11 +698,12 @@ class MLE_Loss_Decoder:
         
         # TODO: maybe fillout all other values with False
         
-        
-    def generate_loss_circuit(self, losses_by_instruction_ix, removing_Pauli_errors=False):
+
+    def generate_loss_circuit(self, losses_by_instruction_ix, removing_Pauli_errors=False, remove_gates_due_to_loss=True):
         
         def fill_loss_qubits_remove_gates_range(lost_q, instruction_ix):
             round_ix = next((round_ix for round_ix, instructions in sorted(self.rounds_by_ix.items()) if sum(len(self.rounds_by_ix[r]) for r in range(-1, round_ix+1)) > instruction_ix), None)
+            # round_ix = round_lookup.get(instruction_ix)
             [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
             # detection_round_offset_start = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < reset_round_ix)
             detection_round_offset_end = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < detection_round_ix + 1)
@@ -537,23 +715,30 @@ class MLE_Loss_Decoder:
             return loss_qubits_remove_gates_range
             
         lost_qubits = set(qubit for sublist in losses_by_instruction_ix.values() for qubit in sublist)
-        first_loss_instruction_index = min(losses_by_instruction_ix)
+        
+        # # Precompute round lookup for instructions
+        # round_lookup = {
+        #     instruction_ix: next((round_ix for round_ix, instructions in sorted(self.rounds_by_ix.items()) if sum(len(self.rounds_by_ix[r]) for r in range(-1, round_ix + 1)) > instruction_ix), None)
+        #     for instruction_ix in losses_by_instruction_ix
+        # }
+        
         loss_qubits_remove_gates_range = {}
-        for instruction_ix in losses_by_instruction_ix:
-            lost_qubits_instruction = losses_by_instruction_ix[instruction_ix]
-            
+        for instruction_ix, lost_qubits_instruction in losses_by_instruction_ix.items():
             if isinstance(lost_qubits_instruction, list):
                 for lost_q in lost_qubits_instruction:
                     loss_qubits_remove_gates_range = fill_loss_qubits_remove_gates_range(lost_q, instruction_ix)
             else:
                 lost_q = lost_qubits_instruction
                 loss_qubits_remove_gates_range = fill_loss_qubits_remove_gates_range(lost_q, instruction_ix)
-                
+        
+        first_loss_instruction_index = min(losses_by_instruction_ix.keys(), default=0) # option to make faster: use this, don't give the generate_circuit_without_lost_qubit function the full circuit. put offset.
         first_loss_instruction_index = 0
         circuit_before_ix = self.circuit[:first_loss_instruction_index]
         circuit_after_ix = self.circuit[first_loss_instruction_index:]
         
-        heralded_circuit_after_ix = self.generate_circuit_without_lost_qubit(lost_qubits = lost_qubits, circuit = circuit_after_ix, circuit_offset = first_loss_instruction_index,loss_qubits_remove_gates_range=loss_qubits_remove_gates_range, removing_Pauli_errors=removing_Pauli_errors) # after removing the following gates with the lost qubits.
+        heralded_circuit_after_ix = self.generate_circuit_without_lost_qubit(lost_qubits = lost_qubits, circuit = circuit_after_ix, 
+                                                                    circuit_offset = first_loss_instruction_index,loss_qubits_remove_gates_range=loss_qubits_remove_gates_range, 
+                                                                    removing_Pauli_errors=removing_Pauli_errors, remove_gates_due_to_loss=remove_gates_due_to_loss) # after removing the following gates with the lost qubits.
         experimental_circuit = circuit_before_ix + heralded_circuit_after_ix
         
         
@@ -563,7 +748,7 @@ class MLE_Loss_Decoder:
     
     
     
-    def generate_dem_loss_circuit(self, losses_by_instruction_ix, event_probability, full_filename=''):
+    def generate_dem_loss_circuit(self, losses_by_instruction_ix, event_probability, full_filename='', remove_gates_due_to_loss=True):
         """ Generate a DEM for given losses as a lil matrix """
         # Generate a unique key based on losses_by_instruction_ix and self.Meta_params
         key = self._generate_unique_key(losses_by_instruction_ix) 
@@ -576,7 +761,9 @@ class MLE_Loss_Decoder:
                     return hyperedges_matrix_dem
             
         else: # generate circuit and dem
-            loss_circuit = self.generate_loss_circuit(losses_by_instruction_ix, removing_Pauli_errors=True)
+            # options to make this part faster:
+            # save the loss circuit with the loss combination, with file name according to num of losses
+            loss_circuit = self.generate_loss_circuit(losses_by_instruction_ix, removing_Pauli_errors=True, remove_gates_due_to_loss=remove_gates_due_to_loss)
             
             # replace final observables with detectors:
             final_loss_circuit = self.observables_to_detectors(loss_circuit)
@@ -627,6 +814,20 @@ class MLE_Loss_Decoder:
         return all_potential_loss_qubits_indices
     
     
+        
+    # def preprocess_circuit_only_SSR(self, full_filename):
+    #     os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
+        
+    #     self.circuit_supercheck_dems = {}
+        
+    #     # step 1: find all measurements in the circuit. [instruction_ix: qubit, ...]
+        
+    #     # step 2: find all combinations of measurements
+        
+    #     # step 3: for each combination, build a DEM with superchecks according to loss pattern (no Clifford errors propagation, only superchecks)
+        
+    #     # step 4: save all to the file
+        
         
         
     def preprocess_circuit(self, full_filename):
@@ -741,13 +942,14 @@ class MLE_Loss_Decoder:
         return combination_dicts, combination_events_probabilities
 
     
-    def generate_all_DEMs_and_sum_over_independent_events(self, add_first_combination = False, use_pre_processed_data = True, return_hyperedges_matrix = False):
+    def generate_all_DEMs_and_sum_over_independent_events(self, add_first_combination = True, use_pre_processed_data = True, return_hyperedges_matrix = False, remove_gates_due_to_loss=True):
         # if add_first_combination = True, we add the DEM of the first loss combination (only if >1 loss event happened)
         # Now we generate many DEMs for every loss event and merge together in 2 steps in order to get 1 final DEM:
         DEMs_loss_pauli_events = [self.Pauli_DEM_matrix] # list of all DEMs for every loss event + DEM for Pauli errors. TODO: add here the Pauli DEM
         Probs_loss_pauli_events = [1]
         num_detectors = self.Pauli_DEM_matrix.shape[1]                
         
+        start_time = time.time()
         for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
             DEMs_specific_loss_event = []
             Probs_specific_loss_event = [] # GB: new
@@ -761,7 +963,7 @@ class MLE_Loss_Decoder:
                 if use_pre_processed_data and key in self.circuit_independent_dems:
                     hyperedges_matrix_dem = self.circuit_independent_dems[key]
                 else:
-                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=1) # GB: changed event prob to 1
+                    hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, event_probability=1, remove_gates_due_to_loss=remove_gates_due_to_loss) # GB: changed event prob to 1
                 DEMs_specific_loss_event.append(hyperedges_matrix_dem) # GB new: binary matrix
                 Probs_specific_loss_event.append(event_probability) # Gb: new
             
@@ -773,27 +975,55 @@ class MLE_Loss_Decoder:
                 print(f"After summing over all DEMs for potential loss events given the loss of qubit {lost_q}, which was detected in round {detection_round_ix}, we got the following DEM_i:")
                 print(DEM_specific_loss_event)
         
+        # print(f'Time to sum over every lossy lifecycle independently: {time.time() - start_time:.2f}s.')      
+        
+        # start_time = time.time()
         if add_first_combination and len(self.potential_losses_by_instruction_index) > 1:
+            
+            # start_time = time.time() # old code (slower)
+            # first_combination_dict = {}; combination_probability = 1
+            # for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
+            #     first_potential_loss_ix = min(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)].keys())
+            #     event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][first_potential_loss_ix][0]
+            #     combination_probability *= event_probability
+            #     if first_potential_loss_ix in first_combination_dict:
+            #         first_combination_dict[first_potential_loss_ix].append(lost_q)
+            #     else:
+            #         first_combination_dict[first_potential_loss_ix] = [lost_q]
+            
+            # print(f'Time to get the first combination dictionary: {time.time() - start_time:.7f}s.')      
+            # print(f"first_combination_dict = {first_combination_dict}")
+            
+            start_time = time.time()
             first_combination_dict = {}; combination_probability = 1
-            for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
-                first_potential_loss_ix = min(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)].keys())
-                event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][first_potential_loss_ix][0]
+            for key, loss_dict in self.potential_losses_by_instruction_index.items():
+                lost_q, detection_round_ix = key
+                first_potential_loss_ix = min(loss_dict.keys())
+                event_probability = loss_dict[first_potential_loss_ix][0]
                 combination_probability *= event_probability
+
                 if first_potential_loss_ix in first_combination_dict:
                     first_combination_dict[first_potential_loss_ix].append(lost_q)
                 else:
                     first_combination_dict[first_potential_loss_ix] = [lost_q]
-            
-            
+            # print(f'Time to get the first combination dictionary with the new code: {time.time() - start_time:.7f}s.')      
+
             # adjust first_comb probability according to the input:
             updated_combination_probability = self.first_comb_weight if self.first_comb_weight > 0 else combination_probability
-            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = first_combination_dict, event_probability=1) # GB new: event prob=1
+            start_time2 = time.time()
+            hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = first_combination_dict, event_probability=1, remove_gates_due_to_loss=remove_gates_due_to_loss) # GB new: event prob=1
+            # print(f'Time to generate the combination loss circuit: {time.time() - start_time2:.4f}s.')      
             DEMs_loss_pauli_events.append(hyperedges_matrix_dem)
             Probs_loss_pauli_events.append(updated_combination_probability)
-            
+        
+        # print(f'Time to generate the loss combination DEM: {time.time() - start_time:.4f}s.')      
+        
         # sum over all loss DEMs:
+        start_time = time.time()
         final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events) # GB: new Probs_loss_pauli_events. TODO: change this function to also get Probs_loss_pauli_events
-                
+        # print(f'Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
+        
+        
         if self.printing:
             print(f"After summing over all losses DEMS + Pauli DEM (high order equation), we got the final DEM for independent losses decoder:")
             print(final_hyperedges_matrix)
@@ -898,7 +1128,7 @@ class MLE_Loss_Decoder:
         
         
         
-    def generate_circuit_without_lost_qubit(self, lost_qubits, circuit, circuit_offset = 0, loss_qubits_remove_gates_range = {}, removing_Pauli_errors=False):
+    def generate_circuit_without_lost_qubit(self, lost_qubits, circuit, circuit_offset = 0, loss_qubits_remove_gates_range = {}, removing_Pauli_errors=False, remove_gates_due_to_loss=True):
         # loss_qubits_remove_gates_range is dictionary where for each lost qubit we get a list of ranges of instruction indices in which we should remove the gates of this qubit.
         new_circuit = stim.Circuit()
         for ix, instruction in enumerate(circuit):
@@ -908,7 +1138,8 @@ class MLE_Loss_Decoder:
             
             targets = [q.value for q in instruction.targets_copy()]
             if set(lost_qubits).intersection(set(targets)):
-                if instruction.name in ['CZ', 'CX', 'SWAP']: # pairs of qubits
+                
+                if instruction.name in ['CZ', 'CX', 'SWAP'] and remove_gates_due_to_loss: # pairs of qubits
                     pairs = [(targets[i], targets[i + 1]) for i in range(0, len(targets), 2)]
                     for (c,t) in pairs:
                         if (c in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[c])) or (t in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[t])):
@@ -918,7 +1149,7 @@ class MLE_Loss_Decoder:
                         else:
                             new_circuit.append(instruction.name, [c,t])
 
-                elif instruction.name in ['H', 'R', 'RX', 'I']:
+                elif instruction.name in ['H', 'R', 'RX', 'I'] and remove_gates_due_to_loss:
                     for q in targets:
                         if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
                             if self.printing :
@@ -927,16 +1158,16 @@ class MLE_Loss_Decoder:
                         else:
                             new_circuit.append(instruction.name, [q])
 
-                elif instruction.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2', 'X_ERROR', 'Y_ERROR', 'Z_ERROR']:
-                    for q in targets:
-                        if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
-                            if self.printing :
-                                a=1
-                                # print(f"Removing this gate from the heralded circuit: {instruction.name}, because my lost qubits = {lost_qubits}")
-                        else:
-                            new_circuit.append(instruction.name, [q], instruction.gate_args_copy())
+                # elif instruction.name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2', 'X_ERROR', 'Y_ERROR', 'Z_ERROR']:
+                #     for q in targets:
+                #         if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
+                #             if self.printing :
+                #                 a=1
+                #                 # print(f"Removing this gate from the heralded circuit: {instruction.name}, because my lost qubits = {lost_qubits}")
+                #         else:
+                #             new_circuit.append(instruction.name, [q], instruction.gate_args_copy())
                             
-                elif instruction.name in ['MRX', 'MR']:
+                elif instruction.name in ['MRX', 'MR']: # to generate superchecks
                     for q in targets:
                         if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
                             # Heralded circuit - lost ancilla qubits give probabilistic 50/50 measurement:
@@ -949,7 +1180,7 @@ class MLE_Loss_Decoder:
                         else:
                             new_circuit.append(instruction.name, [q])
                 
-                elif instruction.name in ['MX', 'M']:
+                elif instruction.name in ['MX', 'M']:  # to generate superchecks
                     for q in targets:
                         if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
                             # Heralded circuit - lost ancilla qubits give probablistic 50/50 measurement:
