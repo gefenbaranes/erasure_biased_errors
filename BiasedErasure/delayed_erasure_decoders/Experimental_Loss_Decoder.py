@@ -5,7 +5,10 @@ from BiasedErasure.main_code.Simulator import *
 from BiasedErasure.delayed_erasure_decoders.HeraldedCircuit_SWAP_LD import HeraldedCircuit_SWAP_LD
 from BiasedErasure.main_code.noise_channels import atom_array
 
-def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_loss_decoding=True, add_first_combination=True, remove_gates_due_to_loss=True):
+def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, 
+                                detection_events_signs: np.ndarray, use_loss_decoding=True, 
+                                use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False):
+        
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
@@ -18,9 +21,9 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         ordering: bad or fowler (good)
         decoder: MLE or MWPM
         use_loss_decoding: True or False. Do we want to use the delayed-erasure decoder?
+        if simulate_data=True: dont use experimental data, simulate it from the stim circuit.
         """
         num_shots = measurement_events.shape[0]
-        
 
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
@@ -34,7 +37,10 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         # Step 1 - decode:
         predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy, 
                                                                 measurement_events = measurement_events, detection_events_signs=detection_events_signs, 
-                                                                use_loss_decoding=use_loss_decoding, add_first_combination=add_first_combination, remove_gates_due_to_loss=remove_gates_due_to_loss)
+                                                                use_loss_decoding=use_loss_decoding, 
+                                                                use_independent_decoder=use_independent_decoder,
+                                                                use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                                                simulate_data=simulate_data)
         
         
         return predictions, observable_flips, dems_list
