@@ -594,7 +594,7 @@ class Simulator:
                     dems_list.append(stim_dem_supercheck)
                     valid_measurement_events.append(measurement_event)
                 # final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment(measurement_event, add_first_combination, remove_gates_due_to_loss) # final_dem_hyperedges_matrix doesn't contain observables, only detectors               
-                # print(f'Total loss decoder time per shot is {time.time() - start_time:.2f}s.')      
+                # print(f'Total supercheck dem generation time per shot is {time.time() - start_time:.6f}s.')      
                 
                 # observables_errors_interactions_lists.append(observables_errors_interactions)
                 # if self.decoder == "MLE":
@@ -663,22 +663,22 @@ class Simulator:
             detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
             detection_events = detection_events_flipped.astype(np.bool_)
             
-            if self.decoder == "MLE":
-                detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
-                predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model, detector_shots = detection_events)
-            else:
-                detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True, ignore_decomposition_failures=True) 
-                predictions = sinter.predict_observables(
-                    dem=detector_error_model,
-                    dets=detection_events,
-                    decoder='pymatching',
-                )
+            # if self.decoder == "MLE":
+            #     detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
+            #     predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model, detector_shots = detection_events)
+            # else:
+            #     detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True, ignore_decomposition_failures=True) 
+            #     predictions = sinter.predict_observables(
+            #         dem=detector_error_model,
+            #         dets=detection_events,
+            #         decoder='pymatching',
+            #     )
 
-            num_errors = np.sum(np.logical_xor(observable_flips, predictions))
-            if self.printing:
-                print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+            # num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+            # if self.printing:
+            #     print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             # predictions_bool = predictions.astype(bool).squeeze()
-            return predictions, observable_flips, detector_error_model
+            return dems_list, detection_events, observable_flips
         
         
         

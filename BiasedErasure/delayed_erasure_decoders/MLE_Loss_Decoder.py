@@ -336,12 +336,17 @@ class MLE_Loss_Decoder:
         
         if shot_had_a_loss:
             
+            
             # step 1 - generate the circuit with RX before heralded loss measurement:
+            # start_time = time.time()
             experimental_circuit, _ = self.add_RX_before_heralded_loss(measurement_event)
+            # print(f'Adding RX to the circuit according to loss took {time.time() - start_time:.6f}s.')      
             
             # step 2 - make observables into detectors(warning - we assume that the observables are on the last instruction, to make it faster. we can change it but it will be slower.)
             try:
-                final_dem = experimental_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
+                # start_time = time.time()
+                final_dem = experimental_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)      
+                # print(f'generating the DEM for the valid shots (no loss right before observable qubits measurements) {time.time() - start_time:.6f}s.')        
                 dont_use_shot = False
             except:
                 final_dem = 0
