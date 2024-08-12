@@ -88,7 +88,7 @@ class Simulator:
     #     return sha256(data_str.encode()).hexdigest()
     
 
-    def generate_circuit(self, dx, dy, cycles, phys_err):
+    def generate_circuit(self, dx, dy, cycles, phys_err, replace_H_Ry=False, xzzx=False):
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_err, self.bias_ratio)
         if self.circuit_type == 'memory':
             if self.architecture == 'CBQC':
@@ -97,7 +97,8 @@ class Simulator:
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
-                                                loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim)
+                                                loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
+                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx)
                 
                 # return memory_experiment_surface(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
                 #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
@@ -558,13 +559,14 @@ class Simulator:
         """
         
         # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True) # real experimental circuit with the added pulses
+        LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        # LogicalCircuit.logical_qubits[0].visualize_code()
+        LogicalCircuit.logical_qubits[0].visualize_code()
         loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
                                                                     basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
                                                                     phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
@@ -592,20 +594,17 @@ class Simulator:
         
         if self.printing:
             print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+            print(f"Vanilla circuit without any pulses: \n{LogicalCircuit_no_pulses}")
         
             
         if simulate_data: # SIMULATING OUR DATA!
             loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
             sampler = MLE_Loss_Decoder_class.circuit.compile_sampler()
             measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
+            np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
             measurement_events = MLE_Loss_Decoder_class.convert_qubit_losses_into_measurement_events(loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
-            # old part - sampling using stim:
-            # num_shots, num_measurements = measurement_events.shape
-            # random_array = np.random.rand(num_shots, num_measurements) # Generate a random array of the same shape with values between 0 and 1
-            # loss_mask = random_array < p_loss # Create a mask where the random values are less than p_loss
-            # measurement_events[loss_mask] = 2
-            
+
             
         if 2 in measurement_events and use_loss_decoding:
             
@@ -613,7 +612,7 @@ class Simulator:
             MLE_Loss_Decoder_class.initialize_loss_decoder() # this part can be improved to be a bit faster
             print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
             
-            if use_independent_decoder: # Delayed erasure decoder, counting lifecycles and Clifford propagation
+            if use_independent_decoder: # Delayed erasure decoder, counting lifecycles and Clifford propagation. can also be comb decoder here!
             
                 # Loss decoding - creating DEMs:
                 dems_list = []
@@ -676,11 +675,11 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            # add normalization step of detection events:
-            if not simulate_data:
-                detection_events_int = detection_events.astype(np.int32)
-                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-                detection_events = detection_events_flipped.astype(np.bool_)
+            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            # if not simulate_data:
+            #     detection_events_int = detection_events.astype(np.int32)
+            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            #     detection_events = detection_events_flipped.astype(np.bool_)
             
             
             # Creating the predictions using the DEM:
@@ -707,14 +706,38 @@ class Simulator:
             measurement_events_no_loss = measurement_events.copy() 
             measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+            
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+            
+            # DEBUGGING:
+            # detection_events, observable_flips = LogicalCircuit_no_pulses.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-
-            # add normalization step of detection events:
-            if not simulate_data:
+            if self.printing:
+                
                 detection_events_int = detection_events.astype(np.int32)
-                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
-                detection_events = detection_events_flipped.astype(np.bool_)
+                detection_events_signs_theory =  np.where(detection_events_int == 0, -1.0, 1.0)
+
+                print(f"detection_events from the pulses circuit = {detection_events_signs_theory[0]}")
+                print(f"detection_events signs from the experiment = {detection_events_signs}")
+                are_equal = np.array_equal(detection_events_signs_theory, detection_events_signs)
+                print("Arrays are equal:", are_equal)
+                # np.save(f"{self.output_dir}/measurement_events_no_loss.npy", measurement_events_no_loss)
+                # for shot in detection_events_int:
+                    # print(detection_events_int[shot])
+                # print(f"0 in detection_events_int : {0 in detection_events_int}")
+                # print(f"1 in detection_events_int : {1 in detection_events_int}")
+                
+                print(f"measurement_events_no_loss = {measurement_events_no_loss}")
+                
+                # print("again:")
+                # for shot in measurement_events_no_loss:
+                #     print(measurement_events_no_loss[shot])
+                
+            # add normalization step of detection events: --> NO NEED ANYMORE IF THE CIRCUITS AGREE ?
+            # if not simulate_data:
+            #     detection_events_int = detection_events.astype(np.int32)
+            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
+            #     detection_events = detection_events_flipped.astype(np.bool_)
             
             
             if self.decoder == "MLE":

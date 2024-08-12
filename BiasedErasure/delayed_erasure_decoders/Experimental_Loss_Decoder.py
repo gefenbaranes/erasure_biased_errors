@@ -32,16 +32,16 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
-                                cycles = cycles, output_dir=output_dir, save_filename=None)
+                                cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True)
         
         # Step 1 - decode:
         predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy, 
-                                                                measurement_events = measurement_events, detection_events_signs=detection_events_signs, 
-                                                                use_loss_decoding=use_loss_decoding, 
-                                                                use_independent_decoder=use_independent_decoder,
-                                                                use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                                simulate_data=simulate_data)
-        
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs, 
+                                                        use_loss_decoding=use_loss_decoding, 
+                                                        use_independent_decoder=use_independent_decoder,
+                                                        use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                                        simulate_data=simulate_data)
+
         
         return predictions, observable_flips, dems_list
 

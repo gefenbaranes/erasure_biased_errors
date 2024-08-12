@@ -30,7 +30,8 @@ class LogicalCircuit(stim.Circuit):
                 reset_error_rate: float = 0.003, measurement_error_rate: float = 0.004,
                 reset_loss_rate: float = 0,
                 initialize_circuit: bool = True,
-                atom_array_sim: bool = False):
+                atom_array_sim: bool = False,
+                replace_H_Ry: bool = False):
         """
         Generates a LogicalCircuit, which is a subclass of stim.Circuit() but with additional attributes that are
         atom-array specific.
@@ -61,6 +62,8 @@ class LogicalCircuit(stim.Circuit):
         
         self.atom_array_sims = atom_array_sim # if True: we work with zones. False: no zones, only errors after operations on the targets
         
+        self.replace_H_Ry = replace_H_Ry
+
         if gate_noise is None:
             if self.atom_array_sims:
                 self.gate_noise = self.standard_gate_noise

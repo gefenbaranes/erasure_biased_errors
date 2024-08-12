@@ -189,7 +189,7 @@ class MLE_Loss_Decoder:
 
             elif self.decoder_type == 'comb':
                 self.circuit_comb_dems = {}
-                for num_of_losses in [1,2]: # number of losses in the combination # TODO: change back to [1,2,3,4,5,6,7]
+                for num_of_losses in [1]: # number of losses in the combination # TODO: maybe change back to [1,2,3,4,5,6,7]
                     full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
                     
                     # pre-process all combinations before:
@@ -1500,7 +1500,7 @@ class MLE_Loss_Decoder:
         DEMs_loss_events = []
         new_circuit_comb_dems = {} # new dems to save now
         Probs_loss_events_list = []
-        
+        # TODO: make the comb decoder faster by taking into account only combinations with highest probability
         for (potential_loss_combination, event_comb_prob) in zip(self.all_potential_losses_combinations, self.combinations_events_probabilities):
             key = self._generate_unique_key(potential_loss_combination)
             num_of_losses = len(potential_loss_combination)
