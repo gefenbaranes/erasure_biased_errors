@@ -15,8 +15,8 @@ setup(
         'stim==1.12.0',
         'pymatching==2.1.0',
         'sinter==1.11.0',
-        'scipy==1.9.1',
-        'numpy==1.21.6',
-        'numba==0.55.1'
+        'scipy>=1.13.1',
+        'numpy>=1.22.4',
+        'numba>=0.60.0'
     ],
 )

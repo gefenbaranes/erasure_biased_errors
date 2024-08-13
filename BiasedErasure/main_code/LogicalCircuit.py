@@ -19,7 +19,8 @@ class LogicalCircuit(stim.Circuit):
                 gate_noise_scale_factor: float = 1.0,
                 loss_noise_scale_factor: float = 1.0,
                 spam_noise_scale_factor: float = 1.0,
-                idle_loss_rate: float = 1e-7,
+                # idle_loss_rate: float = 1e-7,
+                idle_loss_rate: float = 0, # debug - remove idling loss rate
                 idle_error_rate: tuple = (5e-6/25, 5e-6/25, 2e-5/25),
                 entangling_zone_error_rate: tuple = (.002/4, .002/4, .005/4),
                 entangling_gate_error_rate: tuple = (.002 / 4, .002 / 4, .0025 / 4, .002 / 4, 0, 0, 0, .002 / 4, 0, 0, 0, .0025 / 4, 0, 0, .005 / 4), 

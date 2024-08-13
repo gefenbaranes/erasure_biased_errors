@@ -601,7 +601,7 @@ class Simulator:
             loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
             sampler = MLE_Loss_Decoder_class.circuit.compile_sampler()
             measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
-            np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
+            # np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
             measurement_events = MLE_Loss_Decoder_class.convert_qubit_losses_into_measurement_events(loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
 

@@ -988,30 +988,26 @@ class MLE_Loss_Decoder:
     
     def convert_hyperedge_matrix_into_binary(self, hyperedges_matrix):
         # Convert to binary matrix and extract row-wise values
-        # binary_matrix = hyperedges_matrix.copy()
-        # binary_matrix = csr_matrix(hyperedges_matrix.shape, dtype=int)
-        binary_matrix = lil_matrix(hyperedges_matrix.shape, dtype=int)
+        binary_matrix = hyperedges_matrix.copy()
         probs_lists = []
 
         for i in range(hyperedges_matrix.shape[0]):
             row_data = hyperedges_matrix.getrow(i)
             if row_data.nnz > 0:  # if the row is not entirely zero
                 
-                # if self.loss_decoder_files_dir[:9] == '/n/home01': # on the cluster 
-                #     probability = row_data.data[0] # Assuming all non-zero entries in a row have the same error probability. on the cluster only one [0]
-                # else:
-                probability = row_data.data[0]
+                if self.loss_decoder_files_dir[:9] == '/n/home01': # on the cluster 
+                    probability = row_data.data[0] # Assuming all non-zero entries in a row have the same error probability. on the cluster only one [0]
+                else:
+                    probability = row_data.data[0][0]
                     
                 probs_lists.append(probability)  # Collect the non-zero values before changing them
-                # binary_matrix.rows[i] = row_data.rows[0]
-                # binary_matrix.data[i] = np.ones_like(row_data.data[0])
-                binary_matrix[i, row_data.indices] = 1
+                binary_matrix.rows[i] = row_data.rows[0]
+                binary_matrix.data[i] = np.ones_like(row_data.data[0])
             else:
                 # print(f"Row is zero. Row {i}")
                 probs_lists.append(1e-20)
         
-        # return binary_matrix, probs_lists
-        return binary_matrix.tocsr(), probs_lists
+        return binary_matrix, probs_lists
 
     
     def convert_detectors_back_to_observables(self, dem_hyperedges_matrix):
@@ -1302,11 +1298,11 @@ class MLE_Loss_Decoder:
         for row_index in range(final_hyperedges_matrix.shape[0]):
             row = final_hyperedges_matrix.getrow(row_index)
             non_zero_columns = row.nonzero()[1]
-            # if self.loss_decoder_files_dir[:9] == '/n/home01': # on the cluster 
-            #     probability = row.data[0] # Assuming all non-zero entries in a row have the same error probability.
-            # else:
-            #     # probability = row.data[0]
-            probability = row.data[0]  # Assuming all non-zero entries in a row have the same error probability.
+            if self.loss_decoder_files_dir[:9] == '/n/home01': # on the cluster 
+                probability = row.data[0] # Assuming all non-zero entries in a row have the same error probability. on the cluster only one [0]
+            else:
+                # probability = row.data[0]
+                probability = row.data[0][0]  # Assuming all non-zero entries in a row have the same error probability. on the cluster only one [0]
 
             # Construct the error command by specifying detector and observable targets
             error_targets = []
@@ -1625,7 +1621,7 @@ class MLE_Loss_Decoder:
         ### Step 2: get all combinations with num_of_losses losses:
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.005))
+        batch_size = max(1, int(total_combinations * 0.05))
     
         ### Step 3: process all combinations:
         circuit_comb_dems = {}
