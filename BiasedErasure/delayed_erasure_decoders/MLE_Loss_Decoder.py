@@ -145,7 +145,29 @@ class MLE_Loss_Decoder:
         #         except EOFError as e:
         #             print(f"EOFError: {e}. The file {full_filename_dems} might be corrupted. Regenerating the file.")
         #             self.preprocess_circuit_only_SSR(full_filename=full_filename_dems)
-                    
+
+    def initialize_loss_decoder_for_sampling_only(self):
+
+        self.rounds_by_ix = self.split_stim_circuit_into_rounds()
+        self.generate_loss_instruction_indices() # setup self.circuit.loss_instruction_indices
+        self.generate_measurement_map() # fill out self.measurement_map {measurement_index: (qubit, round_index)}
+        
+        # fill out self.qubit_lifecycles_and_losses (without the losses for now):
+        if self.loss_detection_method_str == 'None':
+            self.get_qubits_lifecycles_None()
+        if self.loss_detection_method_str == 'MBQC':
+            self.get_qubits_lifecycles_MBQC()
+        elif self.loss_detection_method_str == 'SWAP':
+            self.get_qubits_lifecycles_SWAP() 
+        elif self.loss_detection_method_str == 'FREE':
+            self.get_qubits_lifecycles_FREE()
+            
+        self.qubit_lifecycles_and_losses_init = copy.deepcopy(self.qubit_lifecycles_and_losses)
+        
+        if self.printing:
+            print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
+        
+        
                     
     def initialize_loss_decoder(self, **kargs):
 
@@ -157,6 +179,8 @@ class MLE_Loss_Decoder:
             self.generate_measurement_map() # fill out self.measurement_map {measurement_index: (qubit, round_index)}
             # fill out self.qubit_lifecycles_and_losses (without the losses for now):
             
+            if self.loss_detection_method_str == 'None':
+                self.get_qubits_lifecycles_None()
             if self.loss_detection_method_str == 'MBQC':
                 self.get_qubits_lifecycles_MBQC()
             elif self.loss_detection_method_str == 'SWAP':
@@ -659,6 +683,28 @@ class MLE_Loss_Decoder:
                 # self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
         self.lost_qubits_by_round_ix[round_ix] = lost_qubits_in_round
         
+        
+    def generate_experimental_circuit(self, loss_detection_events):
+        """ This function takes the original circuit with places for potential losses and loss detection events, and generates the experimental circuit in which some qubits are gone. """
+        
+        if True in loss_detection_events: # there is a loss in this shot:
+            # Initialization for every shot:
+            self.lost_qubits_by_round_ix = {}
+            self.real_losses_by_instruction_ix = {} # {instruction_ix: (lost_qubit), ...}
+            
+            # First sweep: get location of lost qubits in the circuit --> for a given lost qubit we get a set of potential loss events.
+            self.qubit_lifecycles_and_losses = copy.deepcopy(self.qubit_lifecycles_and_losses_init) # init self.qubit_lifecycles_and_losses for this shot
+            self.update_real_losses_by_instruction_ix(loss_detection_events=loss_detection_events)
+            self.update_qubit_lifecycles_and_losses()  # update self.qubit_lifecycles_and_losses
+            
+            # Step 1 - generate the circuit that is really running in the experiment, for the given loss pattern (without gates after losing qubits):
+            experimental_circuit = self.generate_loss_circuit(losses_by_instruction_ix = self.real_losses_by_instruction_ix, removing_Pauli_errors=False)
+        
+        else: # no losses in this shot
+            experimental_circuit = self.circuit.copy()
+
+        return experimental_circuit
+    
     
 
     def generate_loss_circuit(self, losses_by_instruction_ix, removing_Pauli_errors=False, remove_gates_due_to_loss=True):
@@ -1067,7 +1113,43 @@ class MLE_Loss_Decoder:
 
         return dems_list, probs_lists
 
-    
+
+
+    def convert_multiple_hyperedge_matrices_into_binary_new(self, hyperedges_matrix_list):
+        # Ensure we have matrices to process
+        if not hyperedges_matrix_list:
+            return [], []
+
+        # Stack all matrices vertically to create one large matrix
+        stacked_matrix = vstack(hyperedges_matrix_list)
+
+        # Extract probabilities in a vectorized way
+        probs_matrix = np.array(stacked_matrix.max(axis=1).todense()).flatten()
+        probs_matrix[probs_matrix == 0] = 1e-20
+
+        # Now convert the entire stacked matrix to a binary matrix
+        binary_matrix = stacked_matrix.copy()
+        binary_matrix.data[:] = 1  # Set all non-zero elements to 1
+
+        # Calculate row indices for manual slicing
+        row_counts = [m.shape[0] for m in hyperedges_matrix_list]
+        split_indices = np.cumsum(row_counts[:-1])
+
+        # Initialize lists to hold the results
+        dems_list = []
+        probs_lists = []
+
+        # Manually slice the matrices
+        start_idx = 0
+        for i, count in enumerate(row_counts):
+            end_idx = start_idx + count
+            dems_list.append(binary_matrix[start_idx:end_idx])
+            probs_lists.append(probs_matrix[start_idx:end_idx])
+            start_idx = end_idx
+
+        return dems_list, probs_lists
+
+
     def convert_detectors_back_to_observables(self, dem_hyperedges_matrix):
         """ 
         Input:
@@ -1816,8 +1898,53 @@ class MLE_Loss_Decoder:
                 self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
 
 
+    def get_qubits_lifecycles_None(self):
+        # Iterate through circuit. Record the lifecycles of each qubit, from initialization to measurement.
+        # loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
+        round_ix = -1
+        inside_qec_round = False
+        self.qubit_lifecycles_and_losses = {int(i): [] for i in self.ancilla_qubits + self.data_qubits}
+        qubit_active_cycle = {i: None for i in self.ancilla_qubits + self.data_qubits}
+        first_QEC_round = True
+        
+        for instruction_ix, instruction in enumerate(self.circuit):
+            # Check when each qubit is init and measured:
+            if instruction.name in ['R', 'RX']: # Beginning of a cycle for these qubits
+                qubits = set([q.value for q in instruction.targets_copy()])
+                for q in qubits:
+                    self.qubit_lifecycles_and_losses[q].append([round_ix, None, None]) # Begin a new cycle for each qubit
+                    qubit_active_cycle[q] = len(self.qubit_lifecycles_and_losses[q]) - 1
+
+            if instruction.name in ['M', 'MX']: # End of a cycle for these qubits
+                qubits = set([q.value for q in instruction.targets_copy()])
+                for q in qubits:
+                    self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][2] = None
+                    self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix # Close the active cycle with the measurement round
+                    qubit_active_cycle[q] = None
+
+                        
+            # QEC rounds:
+            if instruction.name == 'TICK':
+                if not inside_qec_round: # beginning of QEC round
+                    if first_QEC_round:
+                        round_ix += 1; first_QEC_round = False
+                    if self.printing:
+                        print(f"Starting QEC Round {round_ix}")
+                else: # end of round
+                    round_ix += 1
+                inside_qec_round = not inside_qec_round
+                continue
+            
+
+        # Handle unmeasured qubits at the end of the circuit
+        for q in qubit_active_cycle:
+            if qubit_active_cycle[q] is not None:
+                self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
+                
+                
     def get_qubits_lifecycles_MBQC(self):
         # Iterate through circuit. Record the lifecycles of each qubit, from initialization to measurement.
+        # not only for MBQC, for every method where lifecycles are set according to initialization and measurements
         # round_ix = -1
         self.qubit_lifecycles_and_losses = {int(i): [] for i in self.ancilla_qubits + self.data_qubits}
         qubit_active_cycle = {i: None for i in self.ancilla_qubits + self.data_qubits}
@@ -1902,7 +2029,9 @@ class MLE_Loss_Decoder:
                     
                 
         # sum over all loss DEMs:
-        hyperedges_matrix_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_loss_events, num_detectors=num_detectors, Probs_list=Probs_loss_events_list)
+        hyperedges_matrix_loss_event_lil = self.combine_DEMs_sum(DEMs_list=DEMs_loss_events, num_detectors=num_detectors, Probs_list=Probs_loss_events_list)
+        hyperedges_matrix_loss_event = hyperedges_matrix_loss_event_lil.tocsr()
+        
         
         # save the sum of the DEMs for this loss event in DEMs_loss_pauli_events
         # hyperedges_matrix_loss_event = hyperedges_matrix_loss_event.tocsr()
@@ -1914,8 +2043,9 @@ class MLE_Loss_Decoder:
             print(hyperedges_matrix_loss_event)
                 
         # Step 2: sum over loss DEM + Pauli errors DEM, according to the high-order formula:
-        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_list)
-        
+        # final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_list)
+        final_hyperedges_matrix = self.combine_DEMs_high_order_csr(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_list)
+
         # Step 3: convert the final dem into rows:
         if self.printing:
             print(f"Final DEM matrix after combining all DEMs for losses and Pauli: {final_hyperedges_matrix}")
@@ -1987,7 +2117,7 @@ class MLE_Loss_Decoder:
         # Step 1: Get all combinations with num_of_losses losses
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.05))
+        batch_size = max(1, int(total_combinations * 0.005))
         print(f"For dx={self.dx}, dy={self.dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
 
         # Step 2: Process all combinations in batches

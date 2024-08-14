@@ -245,7 +245,7 @@ class Simulator:
             # loss_detection_class.SWAP_circuit = SWAP_circuit
             MLE_Loss_Decoder_class.circuit = SWAP_circuit
         
-        elif self.loss_detection_method_str in ['FREE', 'MBQC']:
+        elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
             MLE_Loss_Decoder_class.circuit = LogicalCircuit
             
         
@@ -360,26 +360,82 @@ class Simulator:
     def sampling_with_loss(self, num_shots: int, dx: int, dy: int, save_path='', noise_params={}):
         """This function samples measurements and detection events including loss.
         """
-        # Step 1 - generate the experimental circuit in our simulation:
+        
+        # Step 1 - initialize loss decoder class:
         LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
         # print(LogicalCircuit)
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
+                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
+                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
+                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type
+                                                )
+        
+        if self.loss_detection_method_str == 'SWAP':
+            loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
+                                                                    phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                                    SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
+            SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
+            if self.printing:
+                print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
+            loss_detection_class.SWAP_circuit = SWAP_circuit
+            MLE_Loss_Decoder_class.circuit = SWAP_circuit
+        
+        elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
+            MLE_Loss_Decoder_class.circuit = LogicalCircuit
+            
         
         # Step 2 - simulate our data
         loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
-        sampler = LogicalCircuit.compile_sampler()
-        measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
-        measurement_events_all_shots = measurement_events_all_shots.astype(int)
-        measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
+        
+        measurement_events_all_shots = []
+        detection_events_all_shots = []
+        
+        if True in loss_detection_events_all_shots: # we have loss in this simulation:
+            MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only()
+            for shot in range(num_shots):
+                print(shot, end = " ")
+                loss_detection_events = loss_detection_events_all_shots[shot]
+                experimental_circuit = MLE_Loss_Decoder_class.generate_experimental_circuit(loss_detection_events=loss_detection_events)
+                
+                measurement_sampler = experimental_circuit.compile_sampler()
+                measurement_event = measurement_sampler.sample(shots=1)
+                
+                # measurement_events_no_loss = measurement_event.copy() 
+                # measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
+                # measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+                detection_event, observable_flip = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_event, separate_observables=True)
+                
+        
+                detection_events_all_shots.append(detection_event[0])
+                measurement_events_all_shots.append(measurement_event[0])
+            
+        else: # no loss! no need to loop over all shots
+            experimental_circuit = MLE_Loss_Decoder_class.circuit
 
-        # Step 3 - get obseravble flips from lossless circuit
-        measurement_events_no_loss = measurement_events.copy() 
-        measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
-        measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
-        detection_events, observable_flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+            measurement_sampler = experimental_circuit.compile_sampler()
+            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots)
+            
+            
+            detection_events_all_shots, observable_flips_all_shots = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
+            measurement_events_all_shots = measurement_events_all_shots.astype(int)
+                
+        # sampler = LogicalCircuit.compile_sampler()
+        # measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
+        # measurement_events_all_shots = measurement_events_all_shots.astype(int)
+        # measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
 
-        return measurement_events_all_shots, detection_events
+        # # Step 3 - get observables flips from lossless circuit
+        # measurement_events_no_loss = measurement_events.copy() 
+        # measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
+        # measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+        # detection_events_all_shots, observable_flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+        return measurement_events_all_shots, detection_events_all_shots
         # # Step 4 - save this data.
         # np.savez(save_path, detection_events=detection_events, observable_flips=observable_flips, measurement_events=measurement_events)
         # return
@@ -413,10 +469,6 @@ class Simulator:
         
         
         LogicalCircuit.logical_qubits[0].visualize_code()
-        loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
-                                                                    phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                                    SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
         
         
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
@@ -429,13 +481,17 @@ class Simulator:
                                                 use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder)
         
         if self.loss_detection_method_str == 'SWAP':
+            loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
+                                                                    phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                                    SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
             SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
             if self.printing:
                 print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
             loss_detection_class.SWAP_circuit = SWAP_circuit
             MLE_Loss_Decoder_class.circuit = SWAP_circuit
         
-        elif self.loss_detection_method_str in ['FREE', 'MBQC']:
+        elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
             MLE_Loss_Decoder_class.circuit = LogicalCircuit
         
         if self.printing:
@@ -466,6 +522,7 @@ class Simulator:
                 hyperedges_matrix_list = []
                 observables_errors_interactions_lists = []
                 print("Shot:", end = " ")
+                loss_start_time = time.time()
                 for shot in range(num_shots):
                     print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
@@ -487,9 +544,14 @@ class Simulator:
                         final_dem = MLE_Loss_Decoder_class.from_hyperedges_matrix_into_stim_dem(final_dem_hyperedges_matrix) # convert into stim format. #TODO: bug - fix it! here final_dem_hyperedges_matrix doesn't contain observables so the DEM will not contain them.
                         dems_list.append(final_dem)
                         
+                # start_time = time.time()
+                # dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary(hyperedges_matrix_list)
+                # print(f'convert ALL hyperedge matrix into binarytook {time.time() - start_time:.6f}s.')
+                print(f'\nTotal loss decoder time for all shots {time.time() - loss_start_time:.4f}s.')      
                 start_time = time.time()
-                dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary(hyperedges_matrix_list)
-                print(f'convert ALL hyperedge matrix into binarytook {time.time() - start_time:.6f}s.')
+                dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary_new(hyperedges_matrix_list)
+                print(f'new method: convert ALL hyperedge matrix into binarytook {time.time() - start_time:.6f}s.')
+                
                 
                 # # TODO: check that all elements in lists are the same:
                 # for i, (original_dem, new_dem) in enumerate(zip(dems_list, dems_list2)):
@@ -550,8 +612,17 @@ class Simulator:
             
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
+                start_time = time.time()
                 predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_fast(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
-
+                print(f'MLE decoder took {time.time() - start_time:.6f}s.')
+                
+                
+                # start_time = time.time()
+                # new_predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_batch(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
+                # print(f'MLE decoder took {time.time() - start_time:.6f}s.')
+                
+                # are_close = np.allclose(predictions, new_predictions, atol=1e-8)
+                # print(f"Are the predictions close within tolerance? {are_close}")
             else:
                 predictions = []
                 for (d, detection_event) in enumerate(detection_events):

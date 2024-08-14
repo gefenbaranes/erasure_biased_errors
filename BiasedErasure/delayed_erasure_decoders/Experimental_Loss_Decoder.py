@@ -29,6 +29,8 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
         cycles = int(Meta_params['cycles'])
+        Meta_params['LD_method'] = 'None'
+        
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 

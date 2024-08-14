@@ -29,7 +29,7 @@ class LogicalCircuit(stim.Circuit):
                 single_qubit_loss_rate: float = 0.0,
                 single_qubit_error_rate: tuple = (1e-4, 1e-4, 1e-4),
                 reset_error_rate: float = 0.003, measurement_error_rate: float = 0.006,
-                reset_loss_rate: float = 0.006, measurement_loss_rate: float = 0.006,  ## add these
+                reset_loss_rate: float = 0, measurement_loss_rate: float = 0,  ## add these
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False):
@@ -158,7 +158,7 @@ class LogicalCircuit(stim.Circuit):
             #     data_qubits.extend(lq.data_qubits)
             # targets = [q for q in targets if q in data_qubits]
             
-            # put errors only on ancilla qubits - debugging:
+            # # put errors only on ancilla qubits - debugging:
             # ancilla_qubits = []
             # for lq in self.logical_qubits:
             #     ancilla_qubits.extend(lq.measure_qubits)
