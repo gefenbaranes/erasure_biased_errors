@@ -8,6 +8,39 @@ import numpy as np
 from scipy.optimize import curve_fit
 import copy
 
+def convert_qubit_losses_into_measurement_events(circuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots):
+    num_shots = loss_detection_events_all_shots.shape[0]
+    # num_measurements = measurement_events_all_shots.shape[1]
+
+    # Initialize the lost qubits status for all shots
+    lost_qubits = np.zeros((num_shots, len(ancilla_qubits + data_qubits)), dtype=bool)
+
+    # Keep track of measurement indices for updating measurement events
+    loss_idx = 0
+    measurement_idx = 0
+
+    # Iterate through the circuit instructions once, for all shots
+    for instruction in circuit:
+        if instruction.name == 'I':
+            # This instruction indicates potential loss locations --> update lost_qubits
+            for target in instruction.targets_copy(): # going over each qubit and checking if it is lost here
+                loss_events = loss_detection_events_all_shots[:, loss_idx] # check in all shots together
+                lost_qubits[:, target.value] = np.logical_or(lost_qubits[:, target.value], loss_events) # update all shots together
+                loss_idx += 1
+
+        elif instruction.name in ['R','RX']:
+            # Re-initialization means qubit is not lost anymore --> update lost_qubits
+            for target in instruction.targets_copy():
+                lost_qubits[:, target.value] = False
+
+        elif instruction.name in ['M','MX']:
+            # This instruction indicates measurements
+            for target in instruction.targets_copy(): # updating the measurement result of this qubit in all shots together. lost_qubits[:, target.value] tells us in which shot this qubit should we lost now.
+                measurement_events_all_shots[:, measurement_idx] = np.where(lost_qubits[:, target.value], 2, measurement_events_all_shots[:, measurement_idx])
+                measurement_idx += 1
+
+    return measurement_events_all_shots
+
 def draw_graph2(g, save=False, filename=None, from_edges=False, size = (2,2)):
     if from_edges:
         g_ = nx.Graph()

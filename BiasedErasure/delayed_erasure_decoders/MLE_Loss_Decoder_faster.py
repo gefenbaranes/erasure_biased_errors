@@ -2,7 +2,7 @@ import stim
 import numpy as np
 from scipy.sparse import lil_matrix
 from itertools import product
-from scipy.sparse import dok_matrix, csc_matrix, csr_matrix, coo_matrix, vstack
+from scipy.sparse import dok_matrix, csc_matrix, csr_matrix, coo_matrix
 import os
 import json
 from hashlib import sha256
@@ -277,12 +277,9 @@ class MLE_Loss_Decoder:
     
     
     
-    def generate_dem_loss_mle_experiment(self, measurement_event, return_matrix_with_observables = False):
+    def generate_dem_loss_mle_experiment(self, measurement_event):
         """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 
-        1. experimental measurement circuit. 2. Theory decoding circuit. 
-        if return_matrix_with_observables=True, we return a dem with the observables inside.
-        
-        """
+        1. experimental measurement circuit. 2. Theory decoding circuit. """
         
         # updated before for all shots together: self.qubit_lifecycles_and_losses, self.rounds_by_ix, self.measurement_map
         
@@ -323,22 +320,18 @@ class MLE_Loss_Decoder:
         else: # no losses in this shot, bring back regular DEM
             final_dem_hyperedges_matrix = self.Pauli_DEM_matrix # here observables are represented as detectors
             
-        if not return_matrix_with_observables:
-            # Final step - remove observables from hyperedgesmatrix and create a list of lists of errors that affect observables
-            # start_time = time.time()
-            final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
-            # print(f'Convert detectors back to observables and create list observables_errors_interactions took {time.time() - start_time:.5f}s')      
-                
-            return final_dem_hyperedges_matrix, observables_errors_interactions
-
-        else: 
-            return final_dem_hyperedges_matrix, None
         
+        # Final step - remove observabes from hyperedgesmatrix and create a list of lists of errors that affect observables
+        start_time = time.time()
+        final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
+        # print(f'Convert detectors back to observables and create list observables_errors_interactions took {time.time() - start_time:.5f}s')      
+            
+        return final_dem_hyperedges_matrix, observables_errors_interactions
+
     
     
-    def generate_dem_loss_mle_experiment_only_superchecks(self, measurement_event, return_matrix_with_observables):
-        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. 
-        return_matrix_with_observables = True """
+    def generate_dem_loss_mle_experiment_only_superchecks(self, measurement_event):
+        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
         
         shot_had_a_loss = 2 in measurement_event
         
@@ -363,15 +356,13 @@ class MLE_Loss_Decoder:
         else: # no losses in this shot
             final_dem_hyperedges_matrix = self.Pauli_DEM_matrix
         
-        if not return_matrix_with_observables:
-            # Final step - remove observabes from hyperedgesmatrix and create a list of lists of errors that affect observables
-            start_time = time.time()
-            final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
-            # print(f'Convert detectors back to observables and create list observables_errors_interactions took {time.time() - start_time:.5f}s')      
-            return final_dem_hyperedges_matrix, observables_errors_interactions
+        # Final step - remove observabes from hyperedgesmatrix and create a list of lists of errors that affect observables
+        start_time = time.time()
+        final_dem_hyperedges_matrix, observables_errors_interactions= self.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
+        # print(f'Convert detectors back to observables and create list observables_errors_interactions took {time.time() - start_time:.5f}s')      
         
-        else:
-            return return_matrix_with_observables, None
+        
+        return final_dem_hyperedges_matrix, observables_errors_interactions
 
 
 
@@ -543,38 +534,38 @@ class MLE_Loss_Decoder:
             loss_detector_ix += 1
         return loss_detector_ix
     
-    # def convert_qubit_losses_into_measurement_events(self, loss_detection_events_all_shots: np.array, measurement_events_all_shots: np.array):
-    #     num_shots = loss_detection_events_all_shots.shape[0]
-    #     num_measurements = measurement_events_all_shots.shape[1]
+    def convert_qubit_losses_into_measurement_events(self, loss_detection_events_all_shots: np.array, measurement_events_all_shots: np.array):
+        num_shots = loss_detection_events_all_shots.shape[0]
+        num_measurements = measurement_events_all_shots.shape[1]
 
-    #     # Initialize the lost qubits status for all shots
-    #     lost_qubits = np.zeros((num_shots, len(self.ancilla_qubits + self.data_qubits)), dtype=bool)
+        # Initialize the lost qubits status for all shots
+        lost_qubits = np.zeros((num_shots, len(self.ancilla_qubits + self.data_qubits)), dtype=bool)
 
-    #     # Keep track of measurement indices for updating measurement events
-    #     loss_idx = 0
-    #     measurement_idx = 0
+        # Keep track of measurement indices for updating measurement events
+        loss_idx = 0
+        measurement_idx = 0
 
-    #     # Iterate through the circuit instructions once, for all shots
-    #     for instruction in self.circuit:
-    #         if instruction.name == 'I':
-    #             # This instruction indicates potential loss locations --> update lost_qubits
-    #             for target in instruction.targets_copy(): # going over each qubit and checking if it is lost here
-    #                 loss_events = loss_detection_events_all_shots[:, loss_idx] # check in all shots together
-    #                 lost_qubits[:, target.value] = np.logical_or(lost_qubits[:, target.value], loss_events) # update all shots together
-    #                 loss_idx += 1
+        # Iterate through the circuit instructions once, for all shots
+        for instruction in self.circuit:
+            if instruction.name == 'I':
+                # This instruction indicates potential loss locations --> update lost_qubits
+                for target in instruction.targets_copy(): # going over each qubit and checking if it is lost here
+                    loss_events = loss_detection_events_all_shots[:, loss_idx] # check in all shots together
+                    lost_qubits[:, target.value] = np.logical_or(lost_qubits[:, target.value], loss_events) # update all shots together
+                    loss_idx += 1
 
-    #         elif instruction.name in ['R','RX']:
-    #             # Re-initialization means qubit is not lost anymore --> update lost_qubits
-    #             for target in instruction.targets_copy():
-    #                 lost_qubits[:, target.value] = False
+            elif instruction.name in ['R','RX']:
+                # Re-initialization means qubit is not lost anymore --> update lost_qubits
+                for target in instruction.targets_copy():
+                    lost_qubits[:, target.value] = False
 
-    #         elif instruction.name in ['M','MX']:
-    #             # This instruction indicates measurements
-    #             for target in instruction.targets_copy(): # updating the measurement result of this qubit in all shots together. lost_qubits[:, target.value] tells us in which shot this qubit should we lost now.
-    #                 measurement_events_all_shots[:, measurement_idx] = np.where(lost_qubits[:, target.value], 2, measurement_events_all_shots[:, measurement_idx])
-    #                 measurement_idx += 1
+            elif instruction.name in ['M','MX']:
+                # This instruction indicates measurements
+                for target in instruction.targets_copy(): # updating the measurement result of this qubit in all shots together. lost_qubits[:, target.value] tells us in which shot this qubit should we lost now.
+                    measurement_events_all_shots[:, measurement_idx] = np.where(lost_qubits[:, target.value], 2, measurement_events_all_shots[:, measurement_idx])
+                    measurement_idx += 1
 
-    #     return measurement_events_all_shots
+        return measurement_events_all_shots
 
             
     
@@ -926,18 +917,7 @@ class MLE_Loss_Decoder:
                 DEMs_specific_loss_event.append(hyperedges_matrix_dem) # GB new: matrix without event probability, only the DEM given this event happened.
                 Probs_specific_loss_event.append(event_probability) # Gb: new
             
-            start_time = time.time()
-            DEM_specific_loss_event_lil = self.combine_DEMs_sum(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
-            DEM_specific_loss_event = DEM_specific_loss_event_lil.tocsr()
-            # print(f'Time to combine DEMs regularly: {time.time() - start_time:.6f}s.')
-            # start_time = time.time()
-            # DEM_specific_loss_event = self.combine_DEMs_sum_csr(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
-            # print(f'Time to combine DEMs csr style: {time.time() - start_time:.6f}s.') # regular was faster than csr style
-            
-            # same_matrices = np.allclose(DEM_specific_loss_event.toarray(), DEM_specific_loss_event_lil.toarray(), atol=1e-8)
-            # print(f"are they the same? {same_matrices}")
-        
-        
+            DEM_specific_loss_event = self.combine_DEMs_sum(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
             DEMs_loss_pauli_events.append(DEM_specific_loss_event)
             Probs_loss_pauli_events.append(1)
             
@@ -949,6 +929,20 @@ class MLE_Loss_Decoder:
         
         # start_time = time.time()
         if self.use_independent_and_first_comb_decoder and len(self.potential_losses_by_instruction_index) > 1:
+            
+            # start_time = time.time() # old code (slower)
+            # first_combination_dict = {}; combination_probability = 1
+            # for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
+            #     first_potential_loss_ix = min(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)].keys())
+            #     event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][first_potential_loss_ix][0]
+            #     combination_probability *= event_probability
+            #     if first_potential_loss_ix in first_combination_dict:
+            #         first_combination_dict[first_potential_loss_ix].append(lost_q)
+            #     else:
+            #         first_combination_dict[first_potential_loss_ix] = [lost_q]
+            
+            # print(f'Time to get the first combination dictionary: {time.time() - start_time:.7f}s.')      
+            # print(f"first_combination_dict = {first_combination_dict}")
             
             start_time = time.time()
             first_combination_dict = {}; combination_probability = 1
@@ -975,16 +969,16 @@ class MLE_Loss_Decoder:
         # print(f'Time to generate the loss combination DEM: {time.time() - start_time:.4f}s.')      
         
         # sum over all loss DEMs:
-        # start_time = time.time()
-        final_hyperedges_matrix = self.combine_DEMs_high_order_csr(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events) # GB: new Probs_loss_pauli_events. TODO: change this function to also get Probs_loss_pauli_events
-        # print(f'New method: Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
+        start_time = time.time()
+        final_hyperedges_matrix = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events) # GB: new Probs_loss_pauli_events. TODO: change this function to also get Probs_loss_pauli_events
+        print(f'New method: Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
         
-        # start_time = time.time()
-        # final_hyperedges_matrix_old_method = self.combine_DEMs_high_order(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events)
-        # print(f'Old method: Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
+        start_time = time.time()
+        final_hyperedges_matrix_old_method = self.combine_DEMs_high_order_old(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events)
+        print(f'Old method: Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
         
-        # same_matrices = np.allclose(final_hyperedges_matrix.toarray(), final_hyperedges_matrix_old_method.toarray(), atol=1e-8)
-        # print(f"are they the same? {same_matrices}")
+        same_matrices = np.allclose(final_hyperedges_matrix.toarray(), final_hyperedges_matrix_old_method.toarray(), atol=1e-8)
+        print(f"are they the same? {same_matrices}")
         
         if self.printing:
             print(f"After summing over all losses DEMS + Pauli DEM (high order equation), we got the final DEM for independent losses decoder:")
@@ -1024,48 +1018,6 @@ class MLE_Loss_Decoder:
         
         # return binary_matrix, probs_lists
         return binary_matrix.tocsr(), probs_lists
-
-    
-
-
-    def convert_multiple_hyperedge_matrices_into_binary(self, hyperedges_matrix_list):
-        # Ensure we have matrices to process
-        if not hyperedges_matrix_list:
-            return [], []
-
-        # Stack all matrices vertically to create one large matrix
-        stacked_matrix = vstack(hyperedges_matrix_list)
-
-        # Initialize an array to hold the probabilities
-        probs_matrix = np.full(stacked_matrix.shape[0], 1e-20, dtype=float)
-
-        # Extract probabilities
-        for i in range(stacked_matrix.shape[0]):
-            row_data = stacked_matrix.getrow(i)
-            if row_data.nnz > 0:  # If the row is not entirely zero
-                # Capture the first non-zero value from the data
-                probs_matrix[i] = row_data.data[0]  # Assuming all non-zero entries in a row have the same probability
-
-        # Now convert the entire stacked matrix to a binary matrix
-        binary_matrix = stacked_matrix.copy()
-        binary_matrix.data[:] = 1  # Set all non-zero elements to 1
-
-        # Calculate row indices for slicing
-        row_counts = [m.shape[0] for m in hyperedges_matrix_list]
-        split_indices = np.cumsum(row_counts)[:-1]
-
-        # Initialize lists to hold the results
-        dems_list = []
-        probs_lists = []
-
-        # Slice the binary matrix and probability list manually
-        start_idx = 0
-        for i, end_idx in enumerate(split_indices.tolist() + [len(probs_matrix)]):
-            dems_list.append(binary_matrix[start_idx:end_idx])
-            probs_lists.append(probs_matrix[start_idx:end_idx])
-            start_idx = end_idx
-
-        return dems_list, probs_lists
 
     
     def convert_detectors_back_to_observables(self, dem_hyperedges_matrix):
@@ -1215,212 +1167,64 @@ class MLE_Loss_Decoder:
         
         # Convert the DEM into a matrix:
         hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, observables_converted_to_detectors=True)
-        hyperedges_matrix_Pauli_DEM = hyperedges_matrix_Pauli_DEM.tocsr()
+
         self.Pauli_DEM = Pauli_DEM
         self.Pauli_DEM_matrix = hyperedges_matrix_Pauli_DEM
 
 
-    # def combine_DEMs_high_order_wrong(self, DEMs_list, num_detectors, Probs_list):
-    #     # Convert the DEMs to hashable rows
-    #     def convert_rows(matrix):
-    #         hashable_rows = {}
-    #         matrix = matrix.tocsr()  # Ensure matrix is CSR format
-    #         for ridx in range(matrix.shape[0]):
-    #             row = matrix[ridx].indices
-    #             if len(row) > 0:  # Skip empty rows
-    #                 value = matrix[ridx].data[0]  # Assuming all values in a row are the same
-    #                 pattern = tuple(sorted(row))
-    #                 hashable_rows[pattern] = (ridx, value)
-    #         return hashable_rows
-
-    #     pattern_to_values = {}
-
-    #     for matrix, prob in zip(DEMs_list, Probs_list):
-    #         for pattern, (ridx, value) in convert_rows(matrix).items():
-    #             if pattern in pattern_to_values:
-    #                 pattern_to_values[pattern].append(value * prob)
-    #             else:
-    #                 pattern_to_values[pattern] = [value * prob]
-
-    #     final_data = []
-    #     final_rows = []
-    #     final_cols = []
-
-    #     for pattern, values in pattern_to_values.items():
-    #         prod_1_minus_values = np.prod([1 - v for v in values])
-    #         prob_i_terms = [(v * prod_1_minus_values / (1 - v)) for v in values]
-
-    #         if len(values) > 3:
-    #             for i in range(len(values)):
-    #                 for j in range(i + 1, len(values)):
-    #                     for k in range(j + 1, len(values)):
-    #                         prob_i_terms.append(
-    #                             values[i] * values[j] * values[k] * np.prod(
-    #                                 [1 - values[n] for n in range(len(values)) if n not in (i, j, k)]
-    #                             )
-    #                         )
-
-    #         value_sum = sum(prob_i_terms)
-    #         for col in pattern:
-    #             final_data.append(value_sum)
-    #             final_rows.append(len(final_rows))
-    #             final_cols.append(col)
-
-    #     # Use COO format for efficient sparse matrix construction and then convert to CSR
-    #     final_matrix = coo_matrix((final_data, (final_rows, final_cols)), shape=(len(final_rows), num_detectors)).tocsr()
-
-    #     return final_matrix
-
-
-
-
-    # def combine_DEMs_high_order_optimized(self, DEMs_list, num_detectors, Probs_list):
-    #     # Convert the DEMs to hashable rows with sparse matrix operations
-    #     def convert_rows_to_hashable(matrix):
-    #         hashable_rows = defaultdict(list)
-    #         matrix = matrix.tocsr()  # Ensure matrix is in CSR format for efficient row slicing
-    #         for row_index in range(matrix.shape[0]):
-    #             row_data = matrix.getrow(row_index)
-    #             if row_data.nnz > 0:  # Skip empty rows
-    #                 pattern = tuple(sorted(row_data.indices))
-    #                 hashable_rows[pattern].append(row_data.data[0])
-    #         return hashable_rows
-
-    #     pattern_to_values = defaultdict(list)
-
-    #     # Populate the pattern_to_values dictionary
-    #     for matrix, prob in zip(DEMs_list, Probs_list):
-    #         for pattern, values in convert_rows_to_hashable(matrix).items():
-    #             for value in values:
-    #                 pattern_to_values[pattern].append(value * prob)
-
-    #     final_data = []
-    #     final_rows = []
-    #     final_cols = []
-
-    #     # Combine the DEMs using high-order probability calculation
-    #     for pattern, values in pattern_to_values.items():
-    #         prob_terms = []
-    #         prod_1_minus_values = np.prod([1 - v for v in values])
-
-    #         # Handle first-order terms
-    #         for v in values:
-    #             prob_terms.append(v * prod_1_minus_values / (1 - v))
-
-    #         # Handle higher-order terms
-    #         if len(values) > 3:
-    #             for i in range(len(values)):
-    #                 for j in range(i + 1, len(values)):
-    #                     for k in range(j + 1, len(values)):
-    #                         prob_terms.append(
-    #                             values[i] * values[j] * values[k] * np.prod(
-    #                                 [1 - values[n] for n in range(len(values)) if n not in (i, j, k)]
-    #                             )
-    #                         )
-
-    #         value_sum = sum(prob_terms)
-    #         for col in pattern:
-    #             final_data.append(value_sum)
-    #             final_rows.append(len(final_rows))
-    #             final_cols.append(col)
-
-    #     # Use COO format for efficient sparse matrix construction and then convert to CSR
-    #     final_matrix = coo_matrix((final_data, (final_rows, final_cols)), shape=(len(final_rows), num_detectors)).tocsr()
-
-    #     return final_matrix
-
-
-    def combine_DEMs_high_order_csr(self, DEMs_list, num_detectors, Probs_list):
-        
-        def convert_rows_csr(matrix):
+    def combine_DEMs_high_order(self, DEMs_list, num_detectors, Probs_list):
+        # Convert the DEMs to hashable rows
+        def convert_rows(matrix):
             hashable_rows = {}
-            matrix.sort_indices()  # Ensure the indices are sorted for consistent hashing
+            matrix = matrix.tocsr()  # Ensure matrix is CSR format
             for ridx in range(matrix.shape[0]):
-                start_idx = matrix.indptr[ridx]
-                end_idx = matrix.indptr[ridx + 1]
-                if start_idx < end_idx:  # Non-empty row
-                    pattern = tuple(matrix.indices[start_idx:end_idx])
-                    value = matrix.data[start_idx]  # Assuming all values in a row are the same
+                row = matrix[ridx].indices
+                if len(row) > 0:  # Skip empty rows
+                    value = matrix[ridx].data[0]  # Assuming all values in a row are the same
+                    pattern = tuple(sorted(row))
                     hashable_rows[pattern] = (ridx, value)
             return hashable_rows
 
-        # Convert all CSR matrices to hashable row format
-        start_time = time.time()
         pattern_to_values = {}
+
         for matrix, prob in zip(DEMs_list, Probs_list):
-            # matrix = matrix.tocsr()
-            
-            for pattern, (ridx, value) in convert_rows_csr(matrix).items():
+            for pattern, (ridx, value) in convert_rows(matrix).items():
                 if pattern in pattern_to_values:
                     pattern_to_values[pattern].append(value * prob)
                 else:
                     pattern_to_values[pattern] = [value * prob]
-        
-        # print(f'conversion to csr and creating pattern to values took {time.time() - start_time:.6f}s')      
-        
-        # Apply the formula of high-order probability sum to combine the values for each pattern
-        start_time = time.time()
-        final_rows = {}
+
+        final_data = []
+        final_rows = []
+        final_cols = []
+
         for pattern, values in pattern_to_values.items():
-            prob_i_terms = [v * np.prod([1 - x for x in values]) / (1 - v) for v in values]
+            prod_1_minus_values = np.prod([1 - v for v in values])
+            prob_i_terms = [(v * prod_1_minus_values / (1 - v)) for v in values]
+
             if len(values) > 3:
-                # Consider terms where 3 specific events happen
-                for i, v1 in enumerate(values):
-                    for j, v2 in enumerate(values[i+1:], start=i+1):
-                        for k, v3 in enumerate(values[j+1:], start=j+1):
-                            prob_i_terms.append(v1 * v2 * v3 * np.prod([1 - x for n, x in enumerate(values) if n not in (i, j, k)]))
-            final_rows[pattern] = sum(prob_i_terms)
-        # print(f'high order formula took {time.time() - start_time:.6f}s')      
-        
-        # Finally, we can build the final matrix
-        # Extract row indices, column indices, and data in one shot
-        # start_time = time.time()
-        row_indices = []
-        col_indices = []
-        data = []
+                for i in range(len(values)):
+                    for j in range(i + 1, len(values)):
+                        for k in range(j + 1, len(values)):
+                            prob_i_terms.append(
+                                values[i] * values[j] * values[k] * np.prod(
+                                    [1 - values[n] for n in range(len(values)) if n not in (i, j, k)]
+                                )
+                            )
 
-        for i, (pattern, value) in enumerate(final_rows.items()):
-            row_indices.extend([i] * len(pattern))  # The same row index for all elements in this row
-            col_indices.extend(pattern)             # Column indices corresponding to the pattern
-            data.extend([value] * len(pattern))     # Same value for each entry in the pattern
-        
-        # Create the CSR matrix directly from these arrays
-        final_matrix = csr_matrix((data, (row_indices, col_indices)), shape=(len(final_rows), num_detectors))
-        # print(f'building final_matrix_csr took {time.time() - start_time:.6f}s')    
-    
-    
-        # start_time = time.time()
-        # final_matrix = lil_matrix((0, num_detectors), dtype=float)
-        # for pattern, value in final_rows.items():
-        #     new_row = np.zeros(num_detectors, dtype=float)
-        #     new_row[list(pattern)] = value
-        #     final_matrix.resize((final_matrix.shape[0] + 1, num_detectors))
-        #     final_matrix[-1, :] = new_row
-        # print(f'building final matrix took {time.time() - start_time:.6f}s')      
+            value_sum = sum(prob_i_terms)
+            for col in pattern:
+                final_data.append(value_sum)
+                final_rows.append(len(final_rows))
+                final_cols.append(col)
 
-        # same_matrices = np.allclose(final_matrix.toarray(), final_matrix_csr.toarray(), atol=1e-8)
-        # print(f"are they the same? {same_matrices}")
-        
-        
-        # # Build the final CSR matrix
-        # row_indices = []
-        # col_indices = []
-        # data = []
+        # Use COO format for efficient sparse matrix construction and then convert to CSR
+        final_matrix = coo_matrix((final_data, (final_rows, final_cols)), shape=(len(final_rows), num_detectors)).tocsr()
 
-        # for pattern, value in final_rows.items():
-        #     row_indices.append(len(row_indices))
-        #     col_indices.extend(pattern)
-        #     data.extend([value] * len(pattern))
-
-        # final_matrix_csr = csr_matrix((data, (row_indices, col_indices)), shape=(len(row_indices), num_detectors))
-
-        # 'final_matrix_csr' is now the final CSR matrix containing the summed probabilities
         return final_matrix
 
 
-
-    def combine_DEMs_high_order(self, DEMs_list, num_detectors, Probs_list):
-        # input: lil matrices. need to convert to csr at the beginning: hyperedges_matrix_dem_csr = hyperedges_matrix_dem_lil.tocsr()
+    def combine_DEMs_high_order_old(self, DEMs_list, num_detectors, Probs_list):
         # Assuming 'DEMs_list' is a list of lil_matrix objects, each representing a DEM for a loss event and one DEM for Pauli events.
         # 'Probs_loss_pauli_events' is a list of probabilities corresponding to each DEM.
         
@@ -1470,11 +1274,10 @@ class MLE_Loss_Decoder:
         return final_matrix
     
     
-    def convert_dem_into_hyperedges_matrix(self, dem, event_probability=1, observables_converted_to_detectors=False):
+    def convert_dem_into_hyperedges_matrix_old(self, dem, event_probability=1, observables_converted_to_detectors=False):
         # Output hyperedge matrix have num col = num detectors + num observables
         # If observables_converted_to_detectors = True: DEM where observables are already converted detectors
         # Note that observables_errors_interactions will be non trivial only if observables_converted_to_detectors = False
-        # generates lil matrix
         
         num_detectors = dem.num_detectors # includes num_observables because 
         num_observables = len(self.observables_indices)
@@ -1499,7 +1302,6 @@ class MLE_Loss_Decoder:
                 targets = np.asarray(targets)
                 hyperedges_matrix[error_index, targets] = probability * event_probability
                 error_index += 1
-                        
         if observables_converted_to_detectors:
             return hyperedges_matrix
         
@@ -1508,10 +1310,7 @@ class MLE_Loss_Decoder:
 
 
 
-    def convert_dem_into_hyperedges_matrix_csr(self, dem, event_probability=1, observables_converted_to_detectors=False):
-        # generate csr matrix directly. slower than the lil matrix.
-        
-        
+    def convert_dem_into_hyperedges_matrix(self, dem, event_probability=1, observables_converted_to_detectors=False):
         num_detectors = dem.num_detectors  # includes num_observables because 
         num_observables = len(self.observables_indices)
         num_total = num_detectors if observables_converted_to_detectors else num_detectors + num_observables
@@ -1540,29 +1339,6 @@ class MLE_Loss_Decoder:
             return hyperedges_matrix
         else:
             return hyperedges_matrix, observables_errors_interactions
-
-
-    def combine_DEMs_sum_csr(self, DEMs_list, num_detectors, Probs_list):
-        # Multiply each DEM by its corresponding probability
-        weighted_DEMs = [dem.multiply(prob) for dem, prob in zip(DEMs_list, Probs_list)]
-        
-        # Stack all weighted DEMs vertically into a single CSR matrix
-        stacked_matrix = vstack(weighted_DEMs, format='csr')
-        
-        # Sum all rows with the same pattern by converting to COO and summing the values
-        coo_matrix = stacked_matrix.tocoo()
-        
-        # Get unique rows by summing duplicate patterns
-        unique_patterns, unique_indices = np.unique(np.vstack((coo_matrix.row, coo_matrix.col)).T, axis=0, return_inverse=True)
-        unique_values = np.bincount(unique_indices, weights=coo_matrix.data)
-
-        # Create the final CSR matrix with the unique patterns and summed values
-        row_indices = unique_patterns[:, 0]
-        col_indices = unique_patterns[:, 1]
-        
-        final_matrix = csr_matrix((unique_values, (row_indices, col_indices)), shape=(np.max(row_indices) + 1, num_detectors))
-
-        return final_matrix
 
 
     def combine_DEMs_sum(self, DEMs_list, num_detectors, Probs_list):
@@ -1654,7 +1430,7 @@ class MLE_Loss_Decoder:
         
         
     def generate_dem_loss_circuit(self, losses_by_instruction_ix, event_probability = 1, full_filename='', remove_gates_due_to_loss=True):
-        """ Generate a DEM for given losses as a lil matrix. new - returns as csr! """
+        """ Generate a DEM for given losses as a lil matrix """
         # Generate a unique key based on losses_by_instruction_ix and self.Meta_params
         key = self._generate_unique_key(losses_by_instruction_ix) 
 
@@ -1677,16 +1453,8 @@ class MLE_Loss_Decoder:
             dem_heralded_circuit = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)
             
             # convert the DEM into a matrix and sum up with previous DEMs:
-            start_time = time.time()
-            # hyperedges_matrix_dem_csr = self.convert_dem_into_hyperedges_matrix_csr(dem_heralded_circuit, event_probability=event_probability, observables_converted_to_detectors=True)
-            # print(f'csr took {time.time() - start_time:.6f}s')      
-            # start_time = time.time()
-            hyperedges_matrix_dem = self.convert_dem_into_hyperedges_matrix(dem_heralded_circuit, event_probability=event_probability, observables_converted_to_detectors=True)  # format: lil matrix
-            hyperedges_matrix_dem = hyperedges_matrix_dem.tocsr()
-            # print(f'lil matrix + conversion to csr took {time.time() - start_time:.6f}s')
-            # matrices_are_equal = (hyperedges_matrix_dem != hyperedges_matrix_dem_csr).nnz == 0
-            # print(f" matrices_are_equal= {matrices_are_equal}")  # This will print True if they are the same, False otherwise
-
+            hyperedges_matrix_dem = self.convert_dem_into_hyperedges_matrix(dem_heralded_circuit, event_probability=event_probability, observables_converted_to_detectors=True)
+            
             if self.printing:
                 print(f"The DEM for the loss circuit with losses {losses_by_instruction_ix} is: \n{dem_heralded_circuit}")
                 print(hyperedges_matrix_dem)

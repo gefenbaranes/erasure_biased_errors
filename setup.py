@@ -11,7 +11,7 @@ setup(
     long_description=open('README.md').read(),
     install_requires=[
         'networkx==2.8.4',
-        'matplotlib==3.5.2',
+        'matplotlib>=3.5.2',
         'stim==1.12.0',
         'pymatching==2.1.0',
         'sinter==1.11.0',
