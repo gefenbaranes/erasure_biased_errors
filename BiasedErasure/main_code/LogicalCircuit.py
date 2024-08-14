@@ -19,17 +19,17 @@ class LogicalCircuit(stim.Circuit):
                 gate_noise_scale_factor: float = 1.0,
                 loss_noise_scale_factor: float = 1.0,
                 spam_noise_scale_factor: float = 1.0,
-                # idle_loss_rate: float = 1e-7,
-                idle_loss_rate: float = 0, # debug - remove idling loss rate
+                idle_loss_rate: float = 0.0,
                 idle_error_rate: tuple = (5e-6/25, 5e-6/25, 2e-5/25),
                 entangling_zone_error_rate: tuple = (.002/4, .002/4, .005/4),
                 entangling_gate_error_rate: tuple = (.002 / 4, .002 / 4, .0025 / 4, .002 / 4, 0, 0, 0, .002 / 4, 0, 0, 0, .0025 / 4, 0, 0, .005 / 4), 
                 erasure_ratio: float = 0.0,
                 entangling_gate_loss_rate: float = .005/4,
+                entangling_gate_correlated_loss_rate: float = .0005/4,
                 single_qubit_loss_rate: float = 0.0,
                 single_qubit_error_rate: tuple = (1e-4, 1e-4, 1e-4),
-                reset_error_rate: float = 0.003, measurement_error_rate: float = 0.004,
-                reset_loss_rate: float = 0,
+                reset_error_rate: float = 0.003, measurement_error_rate: float = 0.006,
+                reset_loss_rate: float = 0.006, measurement_loss_rate: float = 0.006,  ## add these
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False):
@@ -106,17 +106,23 @@ class LogicalCircuit(stim.Circuit):
         self.entangling_zone_error_rate = entangling_zone_error_rate
         self.entangling_gate_error_rate = entangling_gate_error_rate
         self.entangling_gate_loss_rate = entangling_gate_loss_rate
+        self.entangling_gate_correlated_loss_rate = entangling_gate_correlated_loss_rate
         self.erasure_ratio = erasure_ratio
         self.reset_error_rate = reset_error_rate
         self.reset_loss_rate = reset_loss_rate
         self.single_qubit_error_rate = single_qubit_error_rate
         self.single_qubit_loss_rate = single_qubit_loss_rate
         self.measurement_error_rate = measurement_error_rate
+        self.measurement_loss_rate = measurement_loss_rate
         self._without_loss = stim.Circuit()
 
         # Handling loss:
         self.potential_lost_qubits = np.array([], dtype=np.int32)
         self.loss_probabilities = np.array([], dtype=np.float32)        
+        
+        # for fast sampling of lost measurements
+        self.lost_measurements_probabilities = np.array([], dtype=np.float32)  # for each measurement, what is the probability to get |loss>
+        self.accumulative_loss_per_qubit = dict() # dict of qubits: accumulative prob of loss.
         
         
         if initialize_circuit:
@@ -200,10 +206,16 @@ class LogicalCircuit(stim.Circuit):
 
         # Add measurement noise before operation
         if qec.is_measurement(operation.name):
-            measurement_noise = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
-            if len(measurement_noise) != 0:
-                noisy_circuit.append('X_ERROR', measurement_noise,
+            qubits = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
+            if len(qubits) != 0:
+                noisy_circuit.append('X_ERROR', qubits,
                                      [self.measurement_error_rate * self.spam_noise_scale_factor])
+            loss_prob = self.measurement_loss_rate * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))
+
 
         noisy_circuit.append(operation)
 
@@ -225,6 +237,14 @@ class LogicalCircuit(stim.Circuit):
                 noisy_circuit.append('I', qubits)
                 self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
                 self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))     
+
+            # # correlated loss channel:
+            # loss_prob = self.entangling_gate_correlated_loss_rate * self.loss_noise_scale_factor
+            # if loss_prob > 0 and add_to_potential_loss:
+            #     noisy_circuit.append('I', qubits)
+            #     self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
+            #     self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))     
+
 
 
         if qec.is_reset(operation.name):

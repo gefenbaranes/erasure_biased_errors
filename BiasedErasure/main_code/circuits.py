@@ -16,7 +16,7 @@ from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircui
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
                                 logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False):
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
@@ -54,7 +54,7 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                                 loss_noise_scale_factor=scale_factor, spam_noise_scale_factor=scale_factor,
                                 gate_noise_scale_factor=scale_factor, idle_noise_scale_factor=scale_factor,
-                                atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry
+                                atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, **noise_params
                                 )
         # lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0; lc.spam_noise_scale_factor = 0; lc.idle_noise_scale_factor = 0 # debugging, without noise
         
@@ -68,6 +68,7 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
                                 atom_array_sim = atom_array_sim)
     
     #  initialization step:
+    start_time = time.time()
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
     
     if logical_basis == 'X':
@@ -78,8 +79,10 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         
     if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
         
-        
+    # print(f"initializing the Logical circuit took: {time.time() - start_time:.6f}s")
+
     # QEC rounds:
+    start_time = time.time()
     SWAP_round_index = 0; SWAP_round_type = 'even'; SWAP_round = False
     for round_ix in range(QEC_cycles):
         if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
@@ -104,16 +107,22 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
             lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
     
-    
+    # print(f"adding all QEC rounds took: {time.time() - start_time:.6f}s")
+
+
     # logical measurement step:
+    start_time = time.time()
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
     
     if logical_basis == 'X':
-        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx)
+        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False)
     
     elif logical_basis == 'Z':
-        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx)
-        
+        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False)
+    
+    # print(f"final measurement round took: {time.time() - start_time:.6f}s")
+    # print(lc)
+
     return lc
 
 
