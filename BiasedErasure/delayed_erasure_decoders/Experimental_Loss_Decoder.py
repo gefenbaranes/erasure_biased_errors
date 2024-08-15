@@ -69,6 +69,22 @@ def get_detection_events_experiment(Meta_params, dx: int, dy: int, output_dir: s
         
 
 
+def preprocess_comb_batches(Meta_params, dx: int, dy: int, output_dir: str, num_of_losses:int, batch_index:int):
+        """This function takes the measurement events, and generates detection events and observables filps."""        
+
+        # Step 0 - generate the Simulator class:
+        bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
+        # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
+        cycles = int(Meta_params['cycles'])
+        simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
+                                bloch_point_params=bloch_point_params, noise=atom_array , 
+                                phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
+                                cycles = cycles, output_dir=output_dir, save_filename=None)
+        
+        simulator.comb_preprocessing(dx = dx, dy = dy, num_of_losses = num_of_losses, batch_index=batch_index)
+        
+
+
 def Loss_DEM_for_belief_matching(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.

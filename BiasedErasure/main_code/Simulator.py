@@ -17,6 +17,8 @@ import json
 from hashlib import sha256
 import pickle
 from BiasedErasure.main_code.XZZX import XZZX
+import itertools
+
 
 class Simulator:
     def __init__(self, Meta_params, 
@@ -862,7 +864,51 @@ class Simulator:
     
     
         
+    def comb_preprocessing(self, dx: int, dy: int, num_of_losses: int, batch_index: int):
+        # Generate the logical circuit
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
         
+        # Identify qubits
+        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
+        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+
+        # Initialize the MLE Loss Decoder
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx=dx, dy=dy, loss_detection_method_str=self.loss_detection_method_str,
+                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                cycles=self.cycles, printing=self.printing, loss_detection_freq=self.loss_detection_freq,
+                                                output_dir=self.output_dir, decoder_type=self.loss_decoder_type,
+                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
+
+        MLE_Loss_Decoder_class.circuit = LogicalCircuit
+        MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only() 
+        all_potential_loss_qubits_indices = MLE_Loss_Decoder_class.get_all_potential_loss_qubits()
+        loss_decoder_files_dir = f"{self.output_dir}/loss_circuits/{MLE_Loss_Decoder_class.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{self.cycles}"
+        full_filename_dems = f'{loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
+        
+        # Step 1: Get all combinations with num_of_losses losses
+        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
+        total_combinations = len(all_combinations)
+        batch_size = max(1, int(total_combinations * 0.005))
+        num_batches = (total_combinations + batch_size - 1) // batch_size
+
+        print(f"Num total combinations: {total_combinations}")
+        print(f"Batch size: {batch_size}")
+        print(f"Number of batches: {num_batches}")
+        print(f"For dx={dx}, dy={dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
+
+        # Determine the range for the specific batch
+        batch_start = batch_index * batch_size
+        batch_end = min(batch_start + batch_size, total_combinations)
+
+        # Get the combinations for this specific batch
+        batch_combinations = all_combinations[batch_start:batch_end]
+
+        # Call the function to analyze this specific batch
+        MLE_Loss_Decoder_class.preprocess_circuit_comb_specific_batch(batches_dir=f'{loss_decoder_files_dir}/batches_{num_of_losses}',
+                                                                    batch_combinations=batch_combinations,
+                                                                    batch_start=batch_start,
+                                                                    batch_end=batch_end)
 
 
 
