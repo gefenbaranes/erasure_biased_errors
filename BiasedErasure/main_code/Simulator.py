@@ -17,8 +17,6 @@ import json
 from hashlib import sha256
 import pickle
 from BiasedErasure.main_code.XZZX import XZZX
-import itertools
-
 
 class Simulator:
     def __init__(self, Meta_params, 
@@ -386,6 +384,18 @@ class Simulator:
         # np.savez(save_path, detection_events=detection_events, observable_flips=observable_flips, measurement_events=measurement_events)
         # return
     
+
+    def get_detections_from_experimental_data(self, dx: int, dy: int, measurements: np.ndarray):
+        # Step 1 - generate the experimental circuit in our simulation:
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
+
+        # Step 2 - get obseravble flips from lossless circuit
+        measurements_no_loss = measurements.copy()
+        measurements_no_loss[measurements_no_loss == 2] = np.random.choice(2, size=np.sum(measurements_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
+        measurements_no_loss = measurements_no_loss.astype(np.bool_)
+        detection_events, flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurements_no_loss, separate_observables=True)
+
+        return detection_events, flips
     
     
     def sampling_with_loss(self, num_losses: int, num_shots_per_loss:int, dx: int, dy: int, noise_params={}, sample_from_given_loss_pattern = False, loss_detection_events_all_shots = None):
@@ -431,9 +441,8 @@ class Simulator:
         if True in loss_detection_events_all_shots: # we have loss in this simulation:
             MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only()
             for loss_shot in range(num_losses):
-                print(loss_shot, end = " ")
+                # print(loss_shot, end = " ")
                 loss_detection_events = loss_detection_events_all_shots[loss_shot]
-                
                 
                 experimental_circuit = MLE_Loss_Decoder_class.generate_experimental_circuit(loss_detection_events=loss_detection_events)
                 
@@ -453,6 +462,11 @@ class Simulator:
                     print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
                     print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
             
+            measurement_events_all_shots = np.array(measurement_events_all_shots).astype(int).reshape((num_losses, num_shots_per_loss, -1))
+            measurement_events_all_shots = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
+            measurement_events_all_shots = measurement_events_all_shots.reshape((num_losses*num_shots_per_loss, -1))
+            detection_events_all_shots = np.array(detection_events_all_shots)
+            
         else: # no loss! no need to loop over all shots
             experimental_circuit = MLE_Loss_Decoder_class.circuit
 
@@ -463,18 +477,8 @@ class Simulator:
             detection_events_all_shots, observable_flips_all_shots = experimental_circuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
                 
-        # sampler = LogicalCircuit.compile_sampler()
-        # measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
-        # measurement_events_all_shots = measurement_events_all_shots.astype(int)
-        # measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
 
-        # # Step 3 - get observables flips from lossless circuit
-        # measurement_events_no_loss = measurement_events.copy() 
-        # measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
-        # measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
-        # detection_events_all_shots, observable_flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
-
-        return measurement_events_all_shots, detection_events_all_shots
+        return measurement_events_all_shots, detection_events_all_shots.astype(int)
         # # Step 4 - save this data.
         # np.savez(save_path, detection_events=detection_events, observable_flips=observable_flips, measurement_events=measurement_events)
         # return
@@ -864,51 +868,7 @@ class Simulator:
     
     
         
-    def comb_preprocessing(self, dx: int, dy: int, num_of_losses: int, batch_index: int):
-        # Generate the logical circuit
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
         
-        # Identify qubits
-        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
-        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
-
-        # Initialize the MLE Loss Decoder
-        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
-                                                dx=dx, dy=dy, loss_detection_method_str=self.loss_detection_method_str,
-                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                cycles=self.cycles, printing=self.printing, loss_detection_freq=self.loss_detection_freq,
-                                                output_dir=self.output_dir, decoder_type=self.loss_decoder_type,
-                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
-
-        MLE_Loss_Decoder_class.circuit = LogicalCircuit
-        MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only() 
-        all_potential_loss_qubits_indices = MLE_Loss_Decoder_class.get_all_potential_loss_qubits()
-        loss_decoder_files_dir = f"{self.output_dir}/loss_circuits/{MLE_Loss_Decoder_class.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{self.cycles}"
-        full_filename_dems = f'{loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
-        
-        # Step 1: Get all combinations with num_of_losses losses
-        all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
-        total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.005))
-        num_batches = (total_combinations + batch_size - 1) // batch_size
-
-        print(f"Num total combinations: {total_combinations}")
-        print(f"Batch size: {batch_size}")
-        print(f"Number of batches: {num_batches}")
-        print(f"For dx={dx}, dy={dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
-
-        # Determine the range for the specific batch
-        batch_start = batch_index * batch_size
-        batch_end = min(batch_start + batch_size, total_combinations)
-
-        # Get the combinations for this specific batch
-        batch_combinations = all_combinations[batch_start:batch_end]
-
-        # Call the function to analyze this specific batch
-        MLE_Loss_Decoder_class.preprocess_circuit_comb_specific_batch(batches_dir=f'{loss_decoder_files_dir}/batches_{num_of_losses}',
-                                                                    batch_combinations=batch_combinations,
-                                                                    batch_start=batch_start,
-                                                                    batch_end=batch_end)
 
 
 

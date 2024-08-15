@@ -36,7 +36,10 @@ def convert_qubit_losses_into_measurement_events(circuit, ancilla_qubits, data_q
         elif instruction.name in ['M','MX']:
             # This instruction indicates measurements
             for target in instruction.targets_copy(): # updating the measurement result of this qubit in all shots together. lost_qubits[:, target.value] tells us in which shot this qubit should we lost now.
-                measurement_events_all_shots[:, measurement_idx] = np.where(lost_qubits[:, target.value], 2, measurement_events_all_shots[:, measurement_idx])
+                # measurement_events_all_shots[:, measurement_idx] = np.where(lost_qubits[:, target.value], 2, measurement_events_all_shots[:, measurement_idx])
+                loss_locations = np.repeat(lost_qubits[:,target.value][:,None], measurement_events_all_shots.shape[1], axis=-1)
+                
+                measurement_events_all_shots[..., measurement_idx] = np.where(loss_locations, 2, measurement_events_all_shots[..., measurement_idx])
                 measurement_idx += 1
 
     return measurement_events_all_shots

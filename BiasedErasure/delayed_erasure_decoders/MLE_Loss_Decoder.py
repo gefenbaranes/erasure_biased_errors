@@ -43,7 +43,7 @@ class MLE_Loss_Decoder:
         else:
             self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{cycles}"
         
-        print(self.loss_decoder_files_dir)
+        # print(self.loss_decoder_files_dir)
         self.measurement_map = {}
         self.measurement_ix_to_ins_ix = {}
         self.decoder_type = Meta_params['loss_decoder']
@@ -744,9 +744,13 @@ class MLE_Loss_Decoder:
         circuit_before_ix = self.circuit[:first_loss_instruction_index]
         circuit_after_ix = self.circuit[first_loss_instruction_index:]
         
-        heralded_circuit_after_ix = self.generate_circuit_without_lost_qubit(lost_qubits = lost_qubits, circuit = circuit_after_ix, 
+        # heralded_circuit_after_ix = self.generate_circuit_without_lost_qubit(lost_qubits = lost_qubits, circuit = circuit_after_ix, 
+        #                                                             circuit_offset = first_loss_instruction_index,loss_qubits_remove_gates_range=loss_qubits_remove_gates_range, 
+        #                                                             removing_Pauli_errors=removing_Pauli_errors, remove_gates_due_to_loss=remove_gates_due_to_loss) # after removing the following gates with the lost qubits.
+        heralded_circuit_after_ix = self.generate_circuit_without_lost_qubit_faster(lost_qubits = lost_qubits, circuit = circuit_after_ix, 
                                                                     circuit_offset = first_loss_instruction_index,loss_qubits_remove_gates_range=loss_qubits_remove_gates_range, 
                                                                     removing_Pauli_errors=removing_Pauli_errors, remove_gates_due_to_loss=remove_gates_due_to_loss) # after removing the following gates with the lost qubits.
+        
         experimental_circuit = circuit_before_ix + heralded_circuit_after_ix
         
         
@@ -1253,7 +1257,66 @@ class MLE_Loss_Decoder:
         return new_circuit
     
 
+    def generate_circuit_without_lost_qubit_faster(self, lost_qubits, circuit, circuit_offset = 0, loss_qubits_remove_gates_range = {}, removing_Pauli_errors=False, remove_gates_due_to_loss=True):
+    # loss_qubits_remove_gates_range is dictionary where for each lost qubit we get a list of ranges of instruction indices in which we should remove the gates of this qubit.
+        new_circuit = []
+        for ix, (name, targets, _) in enumerate(circuit.flattened_operations()):
+            instruction_ix = ix + circuit_offset
+            if removing_Pauli_errors and name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2', 'X_ERROR', 'Y_ERROR', 'Z_ERROR']:
+                continue # don't put Pauli errors in the experimental loss circuit
+            
+            is_qubit_lost = lambda q: (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q]))
+            if set(lost_qubits).intersection(set(targets)):
+                
+                if name in ['CZ', 'CX', 'SWAP'] and remove_gates_due_to_loss: # pairs of qubits
+                    pairs = [(targets[i], targets[i + 1]) for i in range(0, len(targets), 2)]
+                    new_circuit.append(name + ' ' + ' '.join([str(c) + ' ' + str(t) for (c, t) in pairs if not (is_qubit_lost(c) or is_qubit_lost(t))]))
 
+                elif name in ['H', 'R', 'RX', 'I'] and remove_gates_due_to_loss:
+                    new_circuit.append(name + ' ' + ' '.join([str(q) for q in targets if not is_qubit_lost(q)]))
+
+                # elif name in ['PAULI_CHANNEL_1', 'PAULI_CHANNEL_2', 'DEPOLARIZE1', 'DEPOLARIZE2', 'X_ERROR', 'Y_ERROR', 'Z_ERROR']:
+                #     for q in targets:
+                #         if (q in loss_qubits_remove_gates_range and any(i <= instruction_ix <= j for i, j in loss_qubits_remove_gates_range[q])):
+                #             if self.printing :
+                #                 a=1
+                #                 # print(f"Removing this gate from the heralded circuit: {name}, because my lost qubits = {lost_qubits}")
+                #         else:
+                #             new_circuit.append(name, [q], instruction.gate_args_copy())
+                            
+                elif name in ['MRX', 'MR']: # to generate superchecks
+                    for q in targets:
+                        if is_qubit_lost(q):
+                            # Heralded circuit - lost ancilla qubits give probabilistic 50/50 measurement:
+                            if name == 'MR':
+                                new_circuit.append(f'RX {q}')
+                                new_circuit.append(f'MR {q}')
+                            elif name == 'MRX':
+                                new_circuit.append(f'R {q}')
+                                new_circuit.append(f'MRX {q}')
+                        else:
+                            new_circuit.append(f'{name} {q}')
+                
+                elif name in ['MX', 'M']:  # to generate superchecks
+                    for q in targets:
+                        if is_qubit_lost(q):
+                            # Heralded circuit - lost ancilla qubits give probablistic 50/50 measurement:
+                            if name == 'M':
+                                new_circuit.append(f'RX {q}')
+                                new_circuit.append(f'M {q}')
+                            elif name == 'MX':
+                                new_circuit.append(f'R {q}')
+                                new_circuit.append(f'MX {q}')
+                        else:
+                            new_circuit.append(f'{name} {q}')
+                            
+                
+                else:
+                    new_circuit.append(str(circuit[ix]))
+            else:
+                new_circuit.append(str(circuit[ix]))
+        
+        return stim.Circuit('\n'.join(new_circuit))
 
 
 
@@ -2196,47 +2259,9 @@ class MLE_Loss_Decoder:
         del combined_circuit_comb_dems
         
         
-    def preprocess_circuit_comb_specific_batch(self, batches_dir, batch_combinations, batch_start, batch_end):
-        # Ensure the batch directory exists
-        os.makedirs(batches_dir, exist_ok=True)
-
-        full_filename_batch = f'{batches_dir}/batch_{batch_start}_to_{batch_end}.pickle'
         
-        # Check if this batch was already processed
-        if os.path.exists(full_filename_batch):
-            print(f"Batch {batch_start} to {batch_end} already processed. Skipping.")
-            return
-
-        circuit_comb_dems = {}  # Dictionary to store DEMs for this batch
         
-        for combination in batch_combinations:
-            losses_by_instruction_ix = {}
-            for (instruction_ix, qubit, event_probability) in combination:
-                if instruction_ix not in losses_by_instruction_ix:
-                    losses_by_instruction_ix[instruction_ix] = [qubit]
-                else:
-                    losses_by_instruction_ix[instruction_ix].append(qubit)
-
-            key = self._generate_unique_key(losses_by_instruction_ix)
-            if key not in circuit_comb_dems:
-                hyperedges_matrix_dem = self.generate_dem_loss_circuit(
-                    losses_by_instruction_ix=losses_by_instruction_ix,
-                    full_filename=full_filename_batch
-                )  # GB: event prob = 1 for preprocessing
-                circuit_comb_dems[key] = hyperedges_matrix_dem
-
-        # Save the current batch results
-        try:
-            with open(full_filename_batch, 'wb') as file:
-                pickle.dump((circuit_comb_dems, self.Meta_params), file)
-        except Exception as e:
-            print(f"Error saving batch {batch_start} to {batch_end}: {e}")
         
-        # Clear memory after processing and saving each batch
-        print(f"Processed batch {batch_start} to {batch_end}")
-        del circuit_comb_dems, batch_combinations
-
-
         
     ####################################################################################: OLD FUNCTIONS  ####################################################################################:
     
