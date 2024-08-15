@@ -2259,9 +2259,47 @@ class MLE_Loss_Decoder:
         del combined_circuit_comb_dems
         
         
+    def preprocess_circuit_comb_specific_batch(self, batches_dir, batch_combinations, batch_start, batch_end):
+        # Ensure the batch directory exists
+        os.makedirs(batches_dir, exist_ok=True)
+
+        full_filename_batch = f'{batches_dir}/batch_{batch_start}_to_{batch_end}.pickle'
         
+        # Check if this batch was already processed
+        if os.path.exists(full_filename_batch):
+            print(f"Batch {batch_start} to {batch_end} already processed. Skipping.")
+            return
+
+        circuit_comb_dems = {}  # Dictionary to store DEMs for this batch
         
+        for combination in batch_combinations:
+            losses_by_instruction_ix = {}
+            for (instruction_ix, qubit, event_probability) in combination:
+                if instruction_ix not in losses_by_instruction_ix:
+                    losses_by_instruction_ix[instruction_ix] = [qubit]
+                else:
+                    losses_by_instruction_ix[instruction_ix].append(qubit)
+
+            key = self._generate_unique_key(losses_by_instruction_ix)
+            if key not in circuit_comb_dems:
+                hyperedges_matrix_dem = self.generate_dem_loss_circuit(
+                    losses_by_instruction_ix=losses_by_instruction_ix,
+                    full_filename=full_filename_batch
+                )  # GB: event prob = 1 for preprocessing
+                circuit_comb_dems[key] = hyperedges_matrix_dem
+
+        # Save the current batch results
+        try:
+            with open(full_filename_batch, 'wb') as file:
+                pickle.dump((circuit_comb_dems, self.Meta_params), file)
+        except Exception as e:
+            print(f"Error saving batch {batch_start} to {batch_end}: {e}")
         
+        # Clear memory after processing and saving each batch
+        print(f"Processed batch {batch_start} to {batch_end}")
+        del circuit_comb_dems, batch_combinations
+
+
         
     ####################################################################################: OLD FUNCTIONS  ####################################################################################:
     
