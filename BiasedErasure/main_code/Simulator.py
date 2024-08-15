@@ -356,6 +356,35 @@ class Simulator:
         # logical_error = num_errors / num_shots
         return num_errors, num_shots
     
+    def sampling_with_loss_old(self, num_shots: int, dx: int, dy: int, save_path='', noise_params={}):
+        """This function samples measurements and detection events including loss.
+        """
+        # Step 1 - generate the experimental circuit in our simulation:
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+        print(LogicalCircuit)
+        # print(LogicalCircuit)
+        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
+        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+
+        # Step 2 - simulate our data
+        loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
+        sampler = LogicalCircuit.compile_sampler()
+        measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
+        measurement_events_all_shots = measurement_events_all_shots.astype(int)
+        measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
+
+        # Step 3 - get obseravble flips from lossless circuit
+        measurement_events_no_loss = measurement_events.copy()
+        measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
+        measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+        detection_events, observable_flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+        return measurement_events_no_loss, detection_events
+        # # Step 4 - save this data.
+        # np.savez(save_path, detection_events=detection_events, observable_flips=observable_flips, measurement_events=measurement_events)
+        # return
+    
+    
     
     def sampling_with_loss(self, num_shots: int, dx: int, dy: int, save_path='', noise_params={}):
         """This function samples measurements and detection events including loss.
@@ -421,7 +450,7 @@ class Simulator:
             measurement_events_all_shots = measurement_sampler.sample(shots=num_shots)
             
             
-            detection_events_all_shots, observable_flips_all_shots = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
+            detection_events_all_shots, observable_flips_all_shots = experimental_circuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
                 
         # sampler = LogicalCircuit.compile_sampler()
@@ -503,7 +532,7 @@ class Simulator:
             loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
             sampler = MLE_Loss_Decoder_class.circuit.compile_sampler()
             measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
-            # np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
+            np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
             measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
 
@@ -644,7 +673,15 @@ class Simulator:
             measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             
+            
+            # print(f"Lets debug!!!!")
+            # print(f"measurement_events = {measurement_events}")
+            # print(f"measurement_events_no_loss = {measurement_events_no_loss}")
+            # print(MLE_Loss_Decoder_class.circuit)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+            
+            # print(detection_events)
+            # print(f"thats it!")
             
             # DEBUGGING:
             # detection_events, observable_flips = LogicalCircuit_no_pulses.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
@@ -711,7 +748,7 @@ class Simulator:
         """
         
         # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
@@ -763,9 +800,9 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
             # add normalization step of detection events:
-            detection_events_int = detection_events.astype(np.int32)
-            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-            detection_events = detection_events_flipped.astype(np.bool_)
+            # detection_events_int = detection_events.astype(np.int32)
+            # detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            # detection_events = detection_events_flipped.astype(np.bool_)
             
             return dems_list, detection_events, observable_flips
         
@@ -778,14 +815,44 @@ class Simulator:
 
 
             # add normalization step of detection events:
-            detection_events_int = detection_events.astype(np.int32)
-            detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
-            detection_events = detection_events_flipped.astype(np.bool_)
+            # detection_events_int = detection_events.astype(np.int32)
+            # detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
+            # detection_events = detection_events_flipped.astype(np.bool_)
             
             return dems_list, detection_events, observable_flips
         
         
+    def get_detection_events(self, dx: int, dy: int, measurement_events: np.ndarray):
+        """This function generates the circuit, takes the measurement events and generates the detection events.
+        """
         
+        # Step 1 - generate the experimental circuit in our simulation:
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
+        
+        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
+        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+        
+
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
+                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
+                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
+                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
+        
+
+        MLE_Loss_Decoder_class.circuit = LogicalCircuit
+        MLE_Loss_Decoder_class.generate_measurement_ix_to_instruction_ix_map() # mapping between measurement events to instruction ix
+        
+
+        measurement_events_no_loss = measurement_events.copy()
+        measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
+        measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
+        detection_events, observable_flips = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+
+        return detection_events, observable_flips
+    
+    
         
         
 

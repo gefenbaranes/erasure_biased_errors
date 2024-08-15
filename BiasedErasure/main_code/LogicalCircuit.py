@@ -29,7 +29,8 @@ class LogicalCircuit(stim.Circuit):
                 single_qubit_loss_rate: float = 0.0,
                 single_qubit_error_rate: tuple = (1e-4, 1e-4, 1e-4),
                 reset_error_rate: float = 0.003, measurement_error_rate: float = 0.006,
-                reset_loss_rate: float = 0, measurement_loss_rate: float = 0,  ## add these
+                # reset_loss_rate: float = 0.006, measurement_loss_rate: float = 0.006,  ## add these
+                reset_loss_rate: float = 0.0, measurement_loss_rate: float = 0.0,  ## add these
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False):
@@ -110,12 +111,19 @@ class LogicalCircuit(stim.Circuit):
         self.erasure_ratio = erasure_ratio
         self.reset_error_rate = reset_error_rate
         self.reset_loss_rate = reset_loss_rate
+        
+        
         self.single_qubit_error_rate = single_qubit_error_rate
         self.single_qubit_loss_rate = single_qubit_loss_rate
         self.measurement_error_rate = measurement_error_rate
         self.measurement_loss_rate = measurement_loss_rate
         self._without_loss = stim.Circuit()
 
+        
+        print(self.reset_loss_rate)
+        print(self.measurement_loss_rate)
+        
+        
         # Handling loss:
         self.potential_lost_qubits = np.array([], dtype=np.int32)
         self.loss_probabilities = np.array([], dtype=np.float32)        
