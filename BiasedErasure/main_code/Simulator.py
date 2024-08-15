@@ -386,7 +386,7 @@ class Simulator:
     
     
     
-    def sampling_with_loss(self, num_shots: int, dx: int, dy: int, save_path='', noise_params={}):
+    def sampling_with_loss(self, num_losses: int, num_shots_per_loss:int, dx: int, dy: int, noise_params={}, sample_from_given_loss_pattern = False, loss_detection_events_all_shots = None):
         """This function samples measurements and detection events including loss.
         """
         
@@ -419,35 +419,43 @@ class Simulator:
             
         
         # Step 2 - simulate our data
-        loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
+        if not sample_from_given_loss_pattern: # generate a random loss pattern here
+            loss_detection_events_all_shots = np.random.rand(num_losses, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
+            # np.save("loss_detection_events_all_shots.npy", loss_detection_events_all_shots)
         
         measurement_events_all_shots = []
         detection_events_all_shots = []
         
         if True in loss_detection_events_all_shots: # we have loss in this simulation:
             MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only()
-            for shot in range(num_shots):
-                print(shot, end = " ")
-                loss_detection_events = loss_detection_events_all_shots[shot]
+            for loss_shot in range(num_losses):
+                print(loss_shot, end = " ")
+                loss_detection_events = loss_detection_events_all_shots[loss_shot]
+                
+                
                 experimental_circuit = MLE_Loss_Decoder_class.generate_experimental_circuit(loss_detection_events=loss_detection_events)
                 
                 measurement_sampler = experimental_circuit.compile_sampler()
-                measurement_event = measurement_sampler.sample(shots=1)
+                measurement_events = measurement_sampler.sample(shots=num_shots_per_loss)
                 
                 # measurement_events_no_loss = measurement_event.copy() 
                 # measurement_events_no_loss[measurement_events_no_loss == 2] = np.random.choice(2, size=np.sum(measurement_events_no_loss == 2)) #change all values in detection_events from 2 to 0,1 randomly
                 # measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
-                detection_event, observable_flip = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_event, separate_observables=True)
+                detection_events, observable_flip = LogicalCircuit.compile_m2d_converter().convert(measurements=measurement_events, separate_observables=True)
                 
-        
-                detection_events_all_shots.append(detection_event[0])
-                measurement_events_all_shots.append(measurement_event[0])
+
+                detection_events_all_shots.extend(detection_events)
+                measurement_events_all_shots.extend(measurement_events)
+                
+                if self.printing:
+                    print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
+                    print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
             
         else: # no loss! no need to loop over all shots
             experimental_circuit = MLE_Loss_Decoder_class.circuit
 
             measurement_sampler = experimental_circuit.compile_sampler()
-            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots)
+            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots_per_loss)
             
             
             detection_events_all_shots, observable_flips_all_shots = experimental_circuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
