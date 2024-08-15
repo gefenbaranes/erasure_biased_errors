@@ -364,6 +364,7 @@ class Simulator:
         """
         # Step 1 - generate the experimental circuit in our simulation:
         LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+        print(LogicalCircuit)
         # print(LogicalCircuit)
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
@@ -557,7 +558,8 @@ class Simulator:
             measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
-
+            print(detection_events)
+            raise Exception
             # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
             # if not simulate_data:
             #     detection_events_int = detection_events.astype(np.int32)
@@ -721,9 +723,10 @@ class Simulator:
                 print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
             # predictions_bool = predictions.astype(bool).squeeze()
             return predictions, observable_flips, detector_error_model
-        
 
-    
+
+
+
     def make_dem_SSR_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
