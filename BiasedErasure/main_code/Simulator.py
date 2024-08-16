@@ -523,7 +523,7 @@ class Simulator:
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        LogicalCircuit.logical_qubits[0].visualize_code()
+        #LogicalCircuit.logical_qubits[0].visualize_code()
         
         
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
