@@ -433,7 +433,7 @@ class Simulator:
         # Step 2 - simulate our data
         if not sample_from_given_loss_pattern: # generate a random loss pattern here
             loss_detection_events_all_shots = np.random.rand(num_losses, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
-            # np.save("loss_detection_events_all_shots.npy", loss_detection_events_all_shots)
+            np.save("loss_detection_events_all_shots.npy", loss_detection_events_all_shots)
         
         measurement_events_all_shots = []
         detection_events_all_shots = []
@@ -441,7 +441,7 @@ class Simulator:
         if True in loss_detection_events_all_shots: # we have loss in this simulation:
             MLE_Loss_Decoder_class.initialize_loss_decoder_for_sampling_only()
             for loss_shot in range(num_losses):
-                print(loss_shot, end = " ")
+                # print(loss_shot, end = " ")
                 loss_detection_events = loss_detection_events_all_shots[loss_shot]
                 
                 
@@ -462,6 +462,9 @@ class Simulator:
                 if self.printing:
                     print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
                     print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
+                    final_loss_circuit = MLE_Loss_Decoder_class.observables_to_detectors(experimental_circuit)
+                    final_dem = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
+                    print(f"dem = {final_dem}")
             measurement_events_all_shots = np.array(measurement_events_all_shots).astype(int).reshape((num_losses, num_shots_per_loss, -1))
             measurement_events_all_shots = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
             measurement_events_all_shots = measurement_events_all_shots.reshape((num_losses*num_shots_per_loss, -1))
@@ -494,7 +497,7 @@ class Simulator:
         
         
     def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, 
-                                        use_loss_decoding=True, use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False):
+                                        use_loss_decoding=True, use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False, noise_params={}):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
@@ -512,7 +515,7 @@ class Simulator:
         
         # Step 1 - generate the experimental circuit in our simulation:
         start_time = time.time()
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True) # real experimental circuit with the added pulses
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params) # real experimental circuit with the added pulses
         print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
         # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
         
@@ -529,7 +532,7 @@ class Simulator:
                                                 cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
                                                 output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
                                                 save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type,
-                                                use_independent_decoder=use_independent_decoder, 
+                                                use_independent_decoder=use_independent_decoder, first_comb_weight=self.first_comb_weight,
                                                 use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder)
         
         if self.loss_detection_method_str == 'SWAP':
@@ -598,11 +601,11 @@ class Simulator:
                         
                 # start_time = time.time()
                 # dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary(hyperedges_matrix_list)
-                # print(f'convert ALL hyperedge matrix into binarytook {time.time() - start_time:.6f}s.')
-                print(f'\nTotal loss decoder time for all shots {time.time() - loss_start_time:.4f}s.')      
+                # print(f'convert ALL hyperedge matrix into binary took {time.time() - start_time:.6f} sec.')
+                print(f'\nTotal loss decoder time for all shots {time.time() - loss_start_time:.4f} sec.')      
                 start_time = time.time()
                 dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary_new(hyperedges_matrix_list)
-                print(f'new method: convert ALL hyperedge matrix into binarytook {time.time() - start_time:.6f}s.')
+                print(f'new method: convert ALL hyperedge matrix into binary took {time.time() - start_time:.6f} sec.')
                 
                 
                 # # TODO: check that all elements in lists are the same:
@@ -661,7 +664,7 @@ class Simulator:
             #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
             #     detection_events = detection_events_flipped.astype(np.bool_)
             
-            
+            print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
                 start_time = time.time()
@@ -676,6 +679,7 @@ class Simulator:
                 # are_close = np.allclose(predictions, new_predictions, atol=1e-8)
                 # print(f"Are the predictions close within tolerance? {are_close}")
             else:
+                start_time = time.time()
                 predictions = []
                 for (d, detection_event) in enumerate(detection_events):
                     detector_error_model = dems_list[d]
@@ -683,6 +687,7 @@ class Simulator:
                     prediction = matching.decode_batch(detection_event)
                     # prediction = matching.decode(detection_event)
                     predictions.append(prediction[0][0])
+                print(f'MWPM decoder took {time.time() - start_time:.6f}s.')
             
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
@@ -902,7 +907,7 @@ class Simulator:
         # Step 1: Get all combinations with num_of_losses losses
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.005))
+        batch_size = max(1, int(total_combinations * 0.001))
         num_batches = (total_combinations + batch_size - 1) // batch_size
 
         print(f"Num total combinations: {total_combinations}")

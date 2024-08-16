@@ -11,6 +11,9 @@ import time
 import copy
 import itertools
 from collections import defaultdict
+import concurrent.futures
+from functools import partial
+
 
 class MLE_Loss_Decoder:
     def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, dx:int, dy:int, ancilla_qubits:list, data_qubits:list, 
@@ -81,7 +84,7 @@ class MLE_Loss_Decoder:
         return sha256(data_str.encode()).hexdigest()
     
     def create_loss_file_name(self, Meta_params, bloch_point_params={}):
-        if type(Meta_params['ordering']) is list:
+        if isinstance(Meta_params['ordering'], (list, np.ndarray)):
             ordering_string = "_".join(Meta_params['ordering'])
 
             ### Need to use shorter notation for the ordering string otherwise filename too long
@@ -213,40 +216,42 @@ class MLE_Loss_Decoder:
 
             elif self.decoder_type == 'comb':
                 self.circuit_comb_dems = {}
-                for num_of_losses in [1,2]: # number of losses in the combination # TODO: maybe change back to [1,2,3,4,5,6,7]
+                for num_of_losses in [1,2,3,4,5,6,7,8,9,10]: # number of losses in the combination # TODO: maybe change back to [1,2,3,4,5,6,7]
                     full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
                     
                     # pre-process all combinations before:
-                    if not self.save_data_during_sim:
-                        if not os.path.exists(full_filename_dems):  # If needed - preprocess this circuit to get all relevant DEMs
-                            if self.printing:
-                                print(f"Loss circuits need to be generated for these parameters ({num_of_losses} losses). Starting pre-processing!")
-                            
-                            # Preprocess in batches:
+                    # if not self.save_data_during_sim:
+                    if not os.path.exists(full_filename_dems):  # If needed - preprocess this circuit to get all relevant DEMs
+                        if self.printing:
+                            print(f"Loss circuits need to be generated for these parameters ({num_of_losses} losses). Starting pre-processing!")
+                        
+                        # Preprocess in batches:
+                        if not self.save_data_during_sim:
                             all_potential_loss_qubits_indices = self.get_all_potential_loss_qubits()
                             self.preprocess_circuit_comb_batches(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
                             # self.preprocess_circuit_comb(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
-                        else:
-                            try:
-                                with open(full_filename_dems, 'rb') as file:
-                                    circuit_comb_dems, _ = pickle.load(file)  # Load the data from the file
-                                    self.circuit_comb_dems.update(circuit_comb_dems)  # Merge
-                            except (EOFError, FileNotFoundError) as e:
-                                print(f"Error: {e}. The file {full_filename_dems} might be corrupted or missing. Regenerating the file.")
-                                all_potential_loss_qubits_indices = self.get_all_potential_loss_qubits()
-                                self.preprocess_circuit_comb_batches(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
-                                # self.preprocess_circuit_comb(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
-                                    
-                    
-                    else:  # No pre-processing. Generating DEMs as we go.
+                    else:
                         try:
                             with open(full_filename_dems, 'rb') as file:
                                 circuit_comb_dems, _ = pickle.load(file)  # Load the data from the file
                                 self.circuit_comb_dems.update(circuit_comb_dems)  # Merge
                         except (EOFError, FileNotFoundError) as e:
-                            print(f"Error: {e}. The file {full_filename_dems} might be corrupted or missing. Creating an empty file.")
-                            with open(full_filename_dems, 'wb') as file:
-                                pickle.dump(({}, self.Meta_params), file)
+                            print(f"Error: {e}. The file {full_filename_dems} might be corrupted or missing. Regenerating the file.")
+                            if not self.save_data_during_sim:
+                                all_potential_loss_qubits_indices = self.get_all_potential_loss_qubits()
+                                self.preprocess_circuit_comb_batches(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
+                            # self.preprocess_circuit_comb(full_filename=full_filename_dems, num_of_losses=num_of_losses, all_potential_loss_qubits_indices=all_potential_loss_qubits_indices)
+                                    
+                    
+                    # else:  # No pre-processing. Generating DEMs as we go.
+                    #     try:
+                    #         with open(full_filename_dems, 'rb') as file:
+                    #             circuit_comb_dems, _ = pickle.load(file)  # Load the data from the file
+                    #             self.circuit_comb_dems.update(circuit_comb_dems)  # Merge
+                    #     except (EOFError, FileNotFoundError) as e:
+                    #         print(f"Error: {e}. The file {full_filename_dems} might be corrupted or missing. Creating an empty file.")
+                    #         with open(full_filename_dems, 'wb') as file:
+                    #             pickle.dump(({}, self.Meta_params), file)
         
     #################################################### Main decoding functions ####################################################
     
@@ -338,6 +343,8 @@ class MLE_Loss_Decoder:
                 # All combination decoder:
                 self.all_potential_losses_combinations, self.combinations_events_probabilities = self.generate_all_potential_losses_combinations(potential_losses_by_instruction_index = self.potential_losses_by_instruction_index)
                 final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_combinations(return_hyperedges_matrix=True)
+                # final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_combinations_parallel(return_hyperedges_matrix=True)
+                
                 if self.printing:
                     print("Now lets see all loss pattern and which detectors were affected:")
                     for element in self.losses_to_detectors:
@@ -2038,6 +2045,87 @@ class MLE_Loss_Decoder:
 ####################################################################################: COMBINATION DECODER FUNCTIONS ####################################################################################:
 
 
+
+    def generate_all_DEMs_and_sum_over_combinations_parallel(self, return_hyperedges_matrix=False, use_pre_processed_data=True):
+        DEMs_loss_pauli_events = [self.Pauli_DEM_matrix]
+        Probs_loss_pauli_list = [1]
+        num_detectors = self.Pauli_DEM_matrix.shape[1]
+        hyperedges_matrix_loss_event = dok_matrix((0, num_detectors), dtype=float)
+        
+        DEMs_loss_events = []
+        new_circuit_comb_dems = {}
+        Probs_loss_events_list = []
+        
+        def process_combination(potential_loss_combination, event_comb_prob):
+            key = self._generate_unique_key(potential_loss_combination)
+            num_of_losses = sum(len(lst) for lst in potential_loss_combination.values())
+            if key in self.circuit_comb_dems:
+                return self.circuit_comb_dems[key], event_comb_prob, None, num_of_losses
+            else:
+                hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix=potential_loss_combination)
+                if num_of_losses in new_circuit_comb_dems:
+                    new_circuit_comb_dems[num_of_losses][key] = hyperedges_matrix_dem
+                else:
+                    new_circuit_comb_dems[num_of_losses] = {key: hyperedges_matrix_dem}
+                return hyperedges_matrix_dem, event_comb_prob, key, num_of_losses
+        
+        # Use ProcessPoolExecutor to parallelize the processing of combinations
+        with concurrent.futures.ProcessPoolExecutor() as executor:
+            results = list(executor.map(process_combination, self.all_potential_losses_combinations, self.combinations_events_probabilities))
+        
+        # Process the results
+        for hyperedges_matrix_dem, event_comb_prob, key, num_of_losses in results:
+            DEMs_loss_events.append(hyperedges_matrix_dem)
+            Probs_loss_events_list.append(event_comb_prob)
+            
+            if key is not None:
+                self.circuit_comb_dems[key] = hyperedges_matrix_dem
+        
+        # Save the new circuit combinations
+        if self.save_data_during_sim:
+            for num_of_losses, dem_dict in new_circuit_comb_dems.items():
+                full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
+                if os.path.exists(full_filename_dems):
+                    try:
+                        with open(full_filename_dems, 'rb') as file:
+                            current_circuit_comb_dems, _ = pickle.load(file)
+                    except (FileNotFoundError, EOFError):
+                        current_circuit_comb_dems = {}
+                else:
+                    current_circuit_comb_dems = {}
+                current_circuit_comb_dems.update(dem_dict)
+                with open(full_filename_dems, 'wb') as file:
+                    pickle.dump((current_circuit_comb_dems, self.Meta_params), file)
+        
+        # Sum over all loss DEMs
+        hyperedges_matrix_loss_event_lil = self.combine_DEMs_sum(
+            DEMs_list=DEMs_loss_events,
+            num_detectors=num_detectors,
+            Probs_list=Probs_loss_events_list
+        )
+        hyperedges_matrix_loss_event = hyperedges_matrix_loss_event_lil.tocsr()
+        
+        DEMs_loss_pauli_events.append(hyperedges_matrix_loss_event)
+        Probs_loss_pauli_list.append(1)
+        
+        final_hyperedges_matrix = self.combine_DEMs_high_order_csr(
+            DEMs_list=DEMs_loss_pauli_events,
+            num_detectors=num_detectors,
+            Probs_list=Probs_loss_pauli_list
+        )
+        
+        if self.printing:
+            print(f"Final DEM matrix after combining all DEMs for losses and Pauli: {final_hyperedges_matrix}")
+        
+        if return_hyperedges_matrix:
+            return final_hyperedges_matrix
+        else:
+            final_dem = self.from_hyperedges_matrix_into_stim_dem(final_hyperedges_matrix)
+            return final_dem
+
+
+
+
     def generate_all_DEMs_and_sum_over_combinations(self, return_hyperedges_matrix=False, use_pre_processed_data=True):
         # Now we generate many DEMs for every potential loss event combination and merge together in 2 steps in order to get 1 final DEM:
         # event_probability is the probability for each loss event combination
@@ -2140,7 +2228,7 @@ class MLE_Loss_Decoder:
         ### Step 2: get all combinations with num_of_losses losses:
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.005))
+        batch_size = max(1, int(total_combinations * 0.001))
     
         ### Step 3: process all combinations:
         circuit_comb_dems = {}
@@ -2180,7 +2268,7 @@ class MLE_Loss_Decoder:
         # Step 1: Get all combinations with num_of_losses losses
         all_combinations = list(itertools.combinations(all_potential_loss_qubits_indices, num_of_losses))
         total_combinations = len(all_combinations)
-        batch_size = max(1, int(total_combinations * 0.005))
+        batch_size = max(1, int(total_combinations * 0.001))
         print(f"For dx={self.dx}, dy={self.dy}, num of losses = {num_of_losses}, we got {total_combinations} combinations to process.")
 
         # Step 2: Process all combinations in batches
@@ -2215,6 +2303,19 @@ class MLE_Loss_Decoder:
                     circuit_comb_dems[key] = hyperedges_matrix_dem
 
             # Save the current batch results
+            # try:
+            #     import scipy.sparse
+            #     circuit_comb_dems_array, circuit_comb_dems_keys, num_errors = [], []
+            #     for key, value in circuit_comb_dems.items():
+            #         circuit_comb_dems_array.append(value)
+            #         circuit_comb_dems_keys.append(key)
+            #     circuit_comb_dems_array = scipy.sparse.vstack(circuit_comb_dems_array)
+            #     scipy.sparse.save_npz(full_filename_batch.replace(".pkl",), circuit_comb_dems)
+            #     with open(full_filename_batch, 'wb') as file:
+            #         pickle.dump((circuit_comb_dems, self.Meta_params), file)
+            # except Exception as e:
+            #     print(f"Error saving batch {batch_start} to {batch_end}: {e}")
+            #     continue
             try:
                 with open(full_filename_batch, 'wb') as file:
                     pickle.dump((circuit_comb_dems, self.Meta_params), file)

@@ -120,8 +120,8 @@ class LogicalCircuit(stim.Circuit):
         self._without_loss = stim.Circuit()
 
         
-        print(self.reset_loss_rate)
-        print(self.measurement_loss_rate)
+        # print(self.reset_loss_rate)
+        # print(self.measurement_loss_rate)
         
         
         # Handling loss:

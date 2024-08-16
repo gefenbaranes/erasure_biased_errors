@@ -50,7 +50,7 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         #                         single_qubit_loss_rate=single_qubit_loss_rate
         #                         )
         
-        scale_factor = 2.5
+        scale_factor = 1
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                                 loss_noise_scale_factor=scale_factor, spam_noise_scale_factor=scale_factor,
                                 gate_noise_scale_factor=scale_factor, idle_noise_scale_factor=scale_factor,

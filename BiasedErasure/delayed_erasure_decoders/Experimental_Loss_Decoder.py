@@ -7,7 +7,7 @@ from BiasedErasure.main_code.noise_channels import atom_array
 
 def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, 
                                 detection_events_signs: np.ndarray, use_loss_decoding=True, 
-                                use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False):
+                                use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False, first_comb_weight=0.1, noise_params={}):
         
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
@@ -31,10 +31,10 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         cycles = int(Meta_params['cycles'])
         Meta_params['LD_method'] = 'None'
         
-        simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
+        simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=first_comb_weight,
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
-                                cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=False)
+                                cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True)
         
         # Step 1 - decode:
         predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy, 
@@ -42,7 +42,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
                                                         use_loss_decoding=use_loss_decoding, 
                                                         use_independent_decoder=use_independent_decoder,
                                                         use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                        simulate_data=simulate_data)
+                                                        simulate_data=simulate_data, noise_params=noise_params)
 
         
         return predictions, observable_flips, dems_list
