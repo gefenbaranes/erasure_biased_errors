@@ -16,21 +16,25 @@ from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircui
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
                                 logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, circuit_index = 0):
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
-    print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
+    if printing:
+        print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
     
     ### Added by SG to allow different orderings for different rounds
     if (type(ordering) is list) or (type(ordering) is np.ndarray):
         if len(ordering) != QEC_cycles:
             ordering = [ordering[0]]*QEC_cycles
-            print(f"Incorrect number of orderings given. Defaulting to the first value: {ordering}")
+            if printing:
+                print(f"Incorrect number of orderings given. Defaulting to the first value: {ordering}")
         else:
-            print(f"Using orderings: {ordering}")
+            if printing:
+                print(f"Using orderings: {ordering}")
     else:
         ordering = [ordering]*QEC_cycles
-        print(f"Using orderings: {ordering}")
+        if printing:
+            print(f"Using orderings: {ordering}")
     ####
 
     if code == 'Rotated_Surface':

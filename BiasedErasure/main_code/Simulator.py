@@ -521,7 +521,8 @@ class Simulator:
         # Step 1 - generate the experimental circuit in our simulation:
         start_time = time.time()
         LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params) # real experimental circuit with the added pulses
-        print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
+        if self.printing:
+            print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
         # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
@@ -534,7 +535,7 @@ class Simulator:
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
                                                 dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
+                                                cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq,
                                                 output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
                                                 save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type,
                                                 use_independent_decoder=use_independent_decoder, first_comb_weight=self.first_comb_weight,
@@ -544,7 +545,7 @@ class Simulator:
             loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
                                                                     basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
                                                                     phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                                    SSR=self.SSR, cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq)
+                                                                    SSR=self.SSR, cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq)
             SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
             if self.printing:
                 print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
@@ -572,7 +573,8 @@ class Simulator:
             
             start_time = time.time()
             MLE_Loss_Decoder_class.initialize_loss_decoder() # this part can be improved to be a bit faster
-            print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
+            if self.printing:
+                print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
             
             if use_independent_decoder: # Delayed erasure decoder, counting lifecycles and Clifford propagation. can also be comb decoder here!
             
@@ -581,7 +583,8 @@ class Simulator:
                 probs_lists = []
                 hyperedges_matrix_list = []
                 observables_errors_interactions_lists = []
-                print("Shot:", end = " ")
+                if self.printing:
+                    print("Shot:", end = " ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
                     if shot % 100 == 0:
@@ -608,10 +611,12 @@ class Simulator:
                 # start_time = time.time()
                 # dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary(hyperedges_matrix_list)
                 # print(f'convert ALL hyperedge matrix into binary took {time.time() - start_time:.6f} sec.')
-                print(f'\nTotal loss decoder time for all shots {time.time() - loss_start_time:.4f} sec.')      
+                if self.printing:
+                    print(f'\nTotal loss decoder time for all shots {time.time() - loss_start_time:.4f} sec.')      
                 start_time = time.time()
                 dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary_new(hyperedges_matrix_list)
-                print(f'new method: convert ALL hyperedge matrix into binary took {time.time() - start_time:.6f} sec.')
+                if self.printing:
+                    print(f'new method: convert ALL hyperedge matrix into binary took {time.time() - start_time:.6f} sec.')
                 
                 
                 # # TODO: check that all elements in lists are the same:
@@ -638,9 +643,11 @@ class Simulator:
                 probs_lists = []
                 observables_errors_interactions_lists = []
                 
-                print("Shot:", end = " ")
+                if self.printing:
+                    print("Shot:", end = " ")
                 for shot in range(num_shots):
-                    print(shot, end = " ")
+                    if self.printing:
+                        print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
@@ -673,12 +680,14 @@ class Simulator:
             #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
             #     detection_events = detection_events_flipped.astype(np.bool_)
             
-            print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
+            if self.printing:
+                print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
             # Creating the predictions using the DEM:
             if self.decoder == "MLE":
                 start_time = time.time()
                 predictions = qec.correlated_decoders.mle_loss.decode_gurobi_with_dem_loss_fast(dems_list=dems_list, probs_lists = probs_lists, detector_shots = detection_events, observables_lists=observables_errors_interactions_lists)   
-                print(f'MLE decoder took {time.time() - start_time:.6f}s.')
+                if self.printing:
+                    print(f'MLE decoder took {time.time() - start_time:.6f}s.')
                 
                 
                 # start_time = time.time()
@@ -696,7 +705,8 @@ class Simulator:
                     prediction = matching.decode_batch(detection_event)
                     # prediction = matching.decode(detection_event)
                     predictions.append(prediction[0][0])
-                print(f'MWPM decoder took {time.time() - start_time:.6f}s.')
+                if self.printing:
+                    print(f'MWPM decoder took {time.time() - start_time:.6f}s.')
             
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
             if self.printing:
