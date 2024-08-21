@@ -587,8 +587,8 @@ class Simulator:
                     print("Shot:", end = " ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
-                    if shot % 100 == 0:
-                        print(shot, end = " ")
+                    #if shot % 100 == 0:
+                    #    print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
