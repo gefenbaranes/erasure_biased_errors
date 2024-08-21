@@ -19,18 +19,18 @@ class LogicalCircuit(stim.Circuit):
                 gate_noise_scale_factor: float = 1.0,
                 loss_noise_scale_factor: float = 1.0,
                 spam_noise_scale_factor: float = 1.0,
-                idle_loss_rate: float = 2.5e-6,
-                idle_error_rate: tuple = (5e-7, 5e-7, 2e-6),
-                entangling_zone_error_rate: tuple = (0.00125, 0.00125, 0.003125),
-                entangling_gate_error_rate: tuple = (0.0125, 0.000125, 0.0015625, 0.000125, 0.000125, 0.0000125, 0.0000125, 0.000125, 0.000125, 0.0125, 0.00125, 0.0125, 0.0125, 0.00125, 0.000125), 
+                idle_loss_rate: float = 0.0,
+                idle_error_rate: tuple = (5e-6/25, 5e-6/25, 2e-5/25),
+                entangling_zone_error_rate: tuple = (.002/4, .002/4, .005/4),
+                entangling_gate_error_rate: tuple = (.002 / 4, .002 / 4, .0025 / 4, .002 / 4, 0, 0, 0, .002 / 4, 0, 0, 0, .0025 / 4, 0, 0, .005 / 4), 
                 erasure_ratio: float = 0.0,
-                entangling_gate_loss_rate: float = 0.003125,
+                entangling_gate_loss_rate: float = .005/4,
                 entangling_gate_correlated_loss_rate: float = .0005/4,
                 single_qubit_loss_rate: float = 0.0,
-                single_qubit_error_rate: tuple = (2.5e-4, 2.5e-4, 2.5e-4),
-                reset_error_rate: float = 0.0075, measurement_error_rate: float = 0.015,
-                reset_loss_rate: float = 0.015, measurement_loss_rate: float = 0.0015,  ## add these
-                # reset_loss_rate: float = 0.0, measurement_loss_rate: float = 0.0,  ## add these
+                single_qubit_error_rate: tuple = (1e-4, 1e-4, 1e-4),
+                reset_error_rate: float = 0.003, measurement_error_rate: float = 0.006,
+                # reset_loss_rate: float = 0.006, measurement_loss_rate: float = 0.006,  ## add these
+                reset_loss_rate: float = 0.0, measurement_loss_rate: float = 0.0,  ## add these
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False):
