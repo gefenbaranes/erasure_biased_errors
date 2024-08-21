@@ -638,7 +638,8 @@ class Simulator:
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
-                    final_dem_hyperedges_matrix, observables_errors_interactions  = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment_only_superchecks(measurement_event)
+                    return_matrix_with_observables = False if self.decoder == 'MLE' else True
+                    final_dem_hyperedges_matrix, observables_errors_interactions  = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment_only_superchecks(measurement_event, return_matrix_with_observables)
                     # print(f'Total loss decoder time per shot is {time.time() - start_time:.4f}s.')      
                     
                     observables_errors_interactions_lists.append(observables_errors_interactions)
@@ -920,8 +921,9 @@ class Simulator:
                     measurement_event = measurement_events[shot]  # change it to measurements
 
                     start_time = time.time()
+                    return_matrix_with_observables = False if self.decoder == 'MLE' else True
                     final_dem_hyperedges_matrix, observables_errors_interactions = MLE_Loss_Decoder_class.generate_dem_loss_mle_experiment_only_superchecks(
-                        measurement_event)
+                        measurement_event, return_matrix_with_observables=return_matrix_with_observables)
                     # print(f'Total loss decoder time per shot is {time.time() - start_time:.4f}s.')
 
                     observables_errors_interactions_lists.append(observables_errors_interactions)

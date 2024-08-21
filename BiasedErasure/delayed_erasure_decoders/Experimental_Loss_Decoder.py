@@ -37,29 +37,29 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
                                 cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True)
 
         if not logical_gaps:
-            # Step 1 - decode:
-            predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
-                                                            measurement_events = measurement_events, detection_events_signs=detection_events_signs,
-                                                            use_loss_decoding=use_loss_decoding,
-                                                            use_independent_decoder=use_independent_decoder,
-                                                            use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                            simulate_data=simulate_data, noise_params=noise_params)
+                # Step 1 - decode:
+                predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                        use_loss_decoding=use_loss_decoding,
+                                                        use_independent_decoder=use_independent_decoder,
+                                                        use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                                        simulate_data=simulate_data, noise_params=noise_params)
 
 
-            return predictions, observable_flips, dems_list
+                return predictions, observable_flips, dems_list
         else:
-            # Step 1 - decode:
-            predictions, log_probabilities, observable_flips, dems_list = simulator.get_logical_gap_experiment(num_shots=num_shots,
-                                                                                                 dx=dx, dy=dy,
-                                                                                                 measurement_events=measurement_events,
-                                                                                                 detection_events_signs=detection_events_signs,
-                                                                                                 use_loss_decoding=use_loss_decoding,
-                                                                                                 use_independent_decoder=use_independent_decoder,
-                                                                                                 use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                                                                 simulate_data=simulate_data,
-                                                                                                 noise_params=noise_params)
+        # Step 1 - decode:
+                predictions, log_probabilities, observable_flips, dems_list = simulator.get_logical_gap_experiment(num_shots=num_shots,
+                                                                                                dx=dx, dy=dy,
+                                                                                                measurement_events=measurement_events,
+                                                                                                detection_events_signs=detection_events_signs,
+                                                                                                use_loss_decoding=use_loss_decoding,
+                                                                                                use_independent_decoder=use_independent_decoder,
+                                                                                                use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                                                                                simulate_data=simulate_data,
+                                                                                                noise_params=noise_params)
 
-            return predictions, log_probabilities, observable_flips, dems_list
+                return predictions, log_probabilities, observable_flips, dems_list
 
 
 def get_detection_events_experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray):
