@@ -16,7 +16,7 @@ from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircui
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
                                 logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}):
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, circuit_index = 0):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
@@ -54,7 +54,7 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                                 loss_noise_scale_factor=scale_factor, spam_noise_scale_factor=scale_factor,
                                 gate_noise_scale_factor=scale_factor, idle_noise_scale_factor=scale_factor,
-                                atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, **noise_params
+                                atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, **noise_params
                                 )
         # lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0; lc.spam_noise_scale_factor = 0; lc.idle_noise_scale_factor = 0 # debugging, without noise
         
@@ -110,16 +110,16 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     
     # print(f"adding all QEC rounds took: {time.time() - start_time:.6f}s")
 
-
     # logical measurement step:
     start_time = time.time()
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
     
+    no_ancillas = True if QEC_cycles==0 else False # added by SG
     if logical_basis == 'X':
-        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False)
+        lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas)
     
     elif logical_basis == 'Z':
-        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False)
+        lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas)
     
     # print(f"final measurement round took: {time.time() - start_time:.6f}s")
     # print(lc)

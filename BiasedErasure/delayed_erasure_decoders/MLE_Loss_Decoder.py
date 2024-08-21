@@ -92,9 +92,16 @@ class MLE_Loss_Decoder:
             replacement_list = ['f', 'Z', 'Z','Zv','Zh','N','Nv','Nh']
             for ordering,replacement in zip(orderings_list,replacement_list):
                 ordering_string = ordering_string.replace(ordering,replacement)
-            return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}"
+
+            if 'circuit_index' in Meta_params.keys():
+                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}_circ_idx__{Meta_params['circuit_index']}"
+            else:
+                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}"
         else:
-            return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
+            if 'circuit_index' in Meta_params.keys():
+                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}_circ_idx__{Meta_params['circuit_index']}"
+            else:
+                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
 
 
     def generate_loss_instruction_indices(self):

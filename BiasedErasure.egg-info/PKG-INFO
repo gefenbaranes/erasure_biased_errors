@@ -6,6 +6,14 @@ Author: Gefen Baranes and Pablo Bonilla
 Author-email: gefenbaranes123@gmail.com
 License: LICENSE
 License-File: LICENSE
+Requires-Dist: networkx==2.8.4
+Requires-Dist: matplotlib>=3.5.2
+Requires-Dist: stim==1.12.0
+Requires-Dist: pymatching==2.1.0
+Requires-Dist: sinter==1.11.0
+Requires-Dist: scipy>=1.13.1
+Requires-Dist: numpy>=1.22.4
+Requires-Dist: numba>=0.60.0
 
 # BiasedErasure
 

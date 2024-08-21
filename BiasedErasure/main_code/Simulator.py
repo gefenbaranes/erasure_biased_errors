@@ -73,6 +73,11 @@ class Simulator:
         self.save_data_during_sim = save_data_during_sim
         self.n_r = Meta_params['n_r'] # num of rounds before a QEC round
 
+
+        ### Circuit type to use
+        self.circuit_index = Meta_params['circuit_index'] if 'circuit_index' in Meta_params.keys() else 0
+
+
     def get_job_id(self):
         # Check for environment variables used by different cluster management systems
         for env_var in ['SLURM_JOB_ID', 'PBS_JOBID', 'LSB_JOBID']:
@@ -101,7 +106,7 @@ class Simulator:
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
-                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params)
+                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, circuit_index = self.circuit_index )
                 
                 # return memory_experiment_surface(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
                 #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
@@ -579,7 +584,8 @@ class Simulator:
                 print("Shot:", end = " ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
-                    print(shot, end = " ")
+                    if shot % 100 == 0:
+                        print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
@@ -659,8 +665,10 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if not simulate_data:
+            # ### ADDED BACK IN 2024/08/20 BY SG ###
+            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            # if (not simulate_data) and (type(detection_events_signs) != None):
+            #     print('Using detection events signs!')
             #     detection_events_int = detection_events.astype(np.int32)
             #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
             #     detection_events = detection_events_flipped.astype(np.bool_)
@@ -736,12 +744,14 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
                 
-            # add normalization step of detection events: --> NO NEED ANYMORE IF THE CIRCUITS AGREE ?
-            # if not simulate_data:
+            # ### ADDED BACK IN 2024/08/20 BY SG ###
+            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            # if (not simulate_data) and (type(detection_events_signs) != None):
+            #     print('Using detection events signs!')
             #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) 
+            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
             #     detection_events = detection_events_flipped.astype(np.bool_)
-            
+
             
             if self.decoder == "MLE":
                 detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
@@ -859,7 +869,8 @@ class Simulator:
                 print("Shot:", end=" ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
-                    print(shot, end=" ")
+                    if shot % 100 == 0:
+                        print(shot, end=" ")
                     measurement_event = measurement_events[shot]  # change it to measurements
 
                     start_time = time.time()
@@ -946,10 +957,12 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(
                 measurements=measurement_events_no_loss, separate_observables=True)
 
-            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if not simulate_data:
+            # ### ADDED BACK IN 2024/08/20 BY SG ###
+            # # add normalization step of detection events
+            # if (not simulate_data) and (type(detection_events_signs) != None):
+            #     print('Using detection events signs!')
             #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
             #     detection_events = detection_events_flipped.astype(np.bool_)
 
             print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
@@ -1017,8 +1030,10 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
 
-            # add normalization step of detection events: --> NO NEED ANYMORE IF THE CIRCUITS AGREE ?
-            # if not simulate_data:
+            # ### ADDED BACK IN 2024/08/20 BY SG ###
+            # # add normalization step of detection events
+            # if (not simulate_data) and (type(detection_events_signs) != None):
+            #     print('Using detection events signs!')
             #     detection_events_int = detection_events.astype(np.int32)
             #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
             #     detection_events = detection_events_flipped.astype(np.bool_)
