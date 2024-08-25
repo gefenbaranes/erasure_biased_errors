@@ -29,8 +29,10 @@ class LogicalCircuit(stim.Circuit):
                 single_qubit_loss_rate: float = 0.0,
                 single_qubit_error_rate: tuple = (0.001, 0.001, 0.001),
                 reset_error_rate: float = 0.03, measurement_error_rate: float = 0.006,
-                reset_loss_rate: float = 0.0006, measurement_loss_rate: float = 0.006,  
-                # reset_loss_rate: float = 0.0, measurement_loss_rate: float = 0.0,
+                reset_loss_rate: float = 0.0006, measurement_loss_rate: float = 0.006,
+                ancilla_idle_loss_rate: float = None, ancilla_idle_error_rate: tuple = None,
+                ancilla_reset_error_rate: float = None, ancilla_measurement_error_rate: float = None,
+                ancilla_reset_loss_rate: float = None, ancilla_measurement_loss_rate: float = None,
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False,
@@ -62,7 +64,7 @@ class LogicalCircuit(stim.Circuit):
         self.logical_qubit_indices = np.arange(self.num_logical_qubits)
         LogicalCircuit.gate_noise = gate_noise
         LogicalCircuit.idle_noise = idle_noise
-        
+
         self.atom_array_sims = atom_array_sim # if True: we work with zones. False: no zones, only errors after operations on the targets
         
         self.replace_H_Ry = replace_H_Ry
@@ -119,8 +121,39 @@ class LogicalCircuit(stim.Circuit):
         self.single_qubit_loss_rate = single_qubit_loss_rate
         self.measurement_error_rate = measurement_error_rate
         self.measurement_loss_rate = measurement_loss_rate
-        self._without_loss = stim.Circuit()
 
+        # If ancilla error rates aren't specified, default to the values of the data qubits
+        if ancilla_idle_loss_rate is None:
+            self.ancilla_idle_loss_rate = self.idle_loss_rate
+        else:
+            self.ancilla_idle_loss_rate = ancilla_idle_loss_rate
+
+        if ancilla_idle_error_rate is None:
+            self.ancilla_idle_error_rate = self.idle_error_rate
+        else:
+            self.ancilla_idle_error_rate = ancilla_idle_error_rate
+
+        if ancilla_reset_loss_rate is None:
+            self.ancilla_reset_loss_rate = self.reset_loss_rate
+        else:
+            self.ancilla_reset_loss_rate = ancilla_reset_loss_rate
+
+        if ancilla_reset_error_rate is None:
+            self.ancilla_reset_error_rate = self.reset_error_rate
+        else:
+            self.ancilla_reset_error_rate = ancilla_reset_error_rate
+
+        if ancilla_measurement_loss_rate is None:
+            self.ancilla_measurement_loss_rate = self.measurement_loss_rate
+        else:
+            self.ancilla_measurement_loss_rate = ancilla_measurement_loss_rate
+
+        if ancilla_measurement_error_rate is None:
+            self.ancilla_measurement_error_rate = self.measurement_error_rate
+        else:
+            self.ancilla_measurement_error_rate = ancilla_measurement_error_rate
+
+        self._without_loss = stim.Circuit()
         
         # print(self.reset_loss_rate)
         # print(self.measurement_loss_rate)
@@ -296,6 +329,130 @@ class LogicalCircuit(stim.Circuit):
                 noisy_circuit.append('I', qubits) # loss probability: self.entangling_gate_loss_rate * self.loss_noise_scale_factor
                 self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
                 self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))
+
+        return noisy_circuit
+
+    def ancilla_data_differentiated_gate_noise(self, operation: stim.CircuitInstruction,
+                            add_to_potential_loss: bool = False) -> stim.Circuit:
+        assert self.atom_array_sims
+
+        noisy_circuit = stim.Circuit()
+
+        # Add measurement noise before operation
+        if qec.is_measurement(operation.name):
+            qubits = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
+            # Differentiate data and ancilla qubits
+            data_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.data_qubits for logical_qubit in self.logical_qubits])))
+            ancilla_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.measure_qubits for logical_qubit in self.logical_qubits])))
+            if len(data_qubits) > 0:
+                noisy_circuit.append('X_ERROR', data_qubits,
+                                     [self.measurement_error_rate * self.spam_noise_scale_factor])
+            if len(ancilla_qubits) > 0:
+                noisy_circuit.append('X_ERROR', ancilla_qubits,
+                                     [self.ancilla_measurement_error_rate * self.spam_noise_scale_factor])
+            loss_prob = self.measurement_loss_rate * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', data_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, data_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(data_qubits), loss_prob))
+
+            ancilla_loss_prob = self.ancilla_measurement_loss_rate * self.loss_noise_scale_factor
+            if ancilla_loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', ancilla_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, ancilla_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(ancilla_qubits), ancilla_loss_prob))
+
+        noisy_circuit.append(operation)
+
+        # Add other errors after operation
+        if qec.is_entangling(operation.name):
+            # Add noise to all qubits in the entangling zone
+            targets = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
+            # qubits that undergo an entangling gate, get a 2q channel:
+            noisy_circuit.append('PAULI_CHANNEL_2', targets,
+                                 np.array(self.entangling_gate_error_rate) * self.gate_noise_scale_factor)
+            # qubits that don't undergo an entangling gate but are in the entangling zone, get a 1q channel:
+            residual_entangling_zone_qubits = self.entangling_zone - set(targets)
+            noisy_circuit.append('PAULI_CHANNEL_1', residual_entangling_zone_qubits,
+                                 np.array(self.entangling_zone_error_rate) * self.gate_noise_scale_factor)
+            # qubits in the entangling zone also get loss:
+            qubits = np.setdiff1d(list(self.entangling_zone),
+                                  list(self.no_noise_zone))  # entangling zone minus no noise zone
+            loss_prob = self.entangling_gate_loss_rate * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))
+
+        if qec.is_reset(operation.name):
+            targets = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
+            # Differentiate data and ancilla qubits
+            data_qubits = list(set(targets) & set(np.concatenate([logical_qubit.data_qubits for logical_qubit in self.logical_qubits])))
+            ancilla_qubits = list(set(targets) & set(np.concatenate([logical_qubit.measure_qubits for logical_qubit in self.logical_qubits])))
+
+            if len(data_qubits) > 0:
+                noisy_circuit.append('X_ERROR', data_qubits, [self.reset_error_rate * self.spam_noise_scale_factor])  # GB's new change - only initialized qubits get the error
+            if len(ancilla_qubits) > 0:
+                noisy_circuit.append('X_ERROR', ancilla_qubits, [self.ancilla_reset_error_rate * self.spam_noise_scale_factor])  # GB's new change - only initialized qubits get the error
+
+            qubits = [t.value for t in operation.targets_copy() if t.value not in self.no_noise_zone]
+            data_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.data_qubits for logical_qubit in self.logical_qubits])))
+            ancilla_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.measure_qubits for logical_qubit in self.logical_qubits])))
+
+            loss_prob = self.reset_loss_rate * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', data_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, data_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(data_qubits), loss_prob))
+
+            ancilla_loss_prob = self.ancilla_reset_loss_rate * self.loss_noise_scale_factor
+            if ancilla_loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', ancilla_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, ancilla_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(ancilla_qubits), ancilla_loss_prob))
+
+        if qec.is_single_qubit(operation.name):
+            # Add single qubit noise only on the qubits we do the operation on
+            noisy_circuit.append('PAULI_CHANNEL_1', [t.value for t in operation.targets_copy() if t.value
+                                                     not in self.no_noise_zone],
+                                 np.array(self.single_qubit_error_rate) * self.gate_noise_scale_factor)
+            qubits = np.setdiff1d(list(self.qubit_indices), list(self.no_noise_zone))
+            loss_prob = self.single_qubit_loss_rate * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I',
+                                     qubits)  # loss probability: self.entangling_gate_loss_rate * self.loss_noise_scale_factor
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(qubits), loss_prob))
+
+        return noisy_circuit
+
+    def ancilla_data_differentiated_idle_noise(self, duration: Union[float, int], add_to_potential_loss: bool) -> stim.Circuit:
+        noisy_circuit = stim.Circuit()
+        if duration != 0:
+            # Everybody gets idling noise!
+            qubits = list(self.entangling_zone | self.storage_zone)
+            data_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.data_qubits for logical_qubit in self.logical_qubits])))
+            ancilla_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.measure_qubits for logical_qubit in self.logical_qubits])))
+
+            noisy_circuit.append('PAULI_CHANNEL_1', data_qubits, (1 - (1 - np.array(self.idle_error_rate)) ** duration) * self.idle_noise_scale_factor)
+            noisy_circuit.append('PAULI_CHANNEL_1', ancilla_qubits, (1 - (1 - np.array(self.ancilla_idle_error_rate)) ** duration) * self.idle_noise_scale_factor)
+
+            # Add per qubit loss noise
+            qubits = np.setdiff1d(list(self.qubit_indices), list(self.no_noise_zone))
+            data_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.data_qubits for logical_qubit in self.logical_qubits])))
+            ancilla_qubits = list(set(qubits) & set(np.concatenate([logical_qubit.measure_qubits for logical_qubit in self.logical_qubits])))
+
+            loss_prob = (1 - (1 - self.idle_loss_rate) ** duration) * self.loss_noise_scale_factor
+            if loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', data_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, data_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(data_qubits), loss_prob))
+
+            ancilla_loss_prob = (1 - (1 - self.ancilla_idle_loss_rate) ** duration) * self.loss_noise_scale_factor
+            if ancilla_loss_prob > 0 and add_to_potential_loss:
+                noisy_circuit.append('I', ancilla_qubits)
+                self.potential_lost_qubits = np.append(self.potential_lost_qubits, ancilla_qubits)
+                self.loss_probabilities = np.append(self.loss_probabilities, np.full(len(ancilla_qubits), ancilla_loss_prob))
 
         return noisy_circuit
 

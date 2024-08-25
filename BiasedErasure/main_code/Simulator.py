@@ -806,6 +806,7 @@ class Simulator:
         LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True,
                                                xzzx=True,
                                                noise_params=noise_params)  # real experimental circuit with the added pulses
+
         print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
         # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
 
