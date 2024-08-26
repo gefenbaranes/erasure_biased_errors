@@ -217,6 +217,7 @@ class MLE_Loss_Decoder:
                     try:
                         with open(full_filename_dems, 'rb') as file:
                             self.circuit_independent_dems, _ = pickle.load(file) # Load the data from the file
+                            # print(f"imported self.circuit_independent_dems with {len(self.circuit_independent_dems)} values!")
                     except EOFError as e:
                         print(f"EOFError: {e}. The file {full_filename_dems} might be corrupted. Regenerating the file.")
                         self.preprocess_circuit(full_filename=full_filename_dems)
@@ -342,9 +343,9 @@ class MLE_Loss_Decoder:
 
             # Step 3 - choose a decoder type:
             if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
-                start_time = time.time()
+                start_time_ind = time.time()
                 final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_independent_events(return_hyperedges_matrix=True)
-                # print(f'Summing over all relevant DEMs to generate the final DEM took {time.time() - start_time:.5f}s')      
+                # print(f'Summing over all relevant DEMs to generate the final DEM took {time.time() - start_time_ind:.5f}s')      
             
             else:
                 # All combination decoder:
@@ -971,24 +972,35 @@ class MLE_Loss_Decoder:
         Probs_loss_pauli_events = [1]
         num_detectors = self.Pauli_DEM_matrix.shape[1]                
         
-        start_time = time.time()
+        start_time_all_losses = time.time()
         for (lost_q, detection_round_ix) in self.potential_losses_by_instruction_index:
             DEMs_specific_loss_event = []
             Probs_specific_loss_event = [] # GB: new
             total_probability = sum(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]) # CHECK
             
+            # start_time_loop = time.time()
             for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]:
+                
                 event_probability = self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] / total_probability
                 losses_by_instruction_ix = {potential_loss_ix: [lost_q]}
                 key = self._generate_unique_key(losses_by_instruction_ix)
                 
+                
+                # start_time_loop2 = time.time()
                 if use_pre_processed_data and key in self.circuit_independent_dems:
                     hyperedges_matrix_dem = self.circuit_independent_dems[key]
+                    # print(f"found it! we love qubit {losses_by_instruction_ix}")
                 else:
                     hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, 
                                                                         remove_gates_due_to_loss=remove_gates_due_to_loss) # GB: changed event prob to 1
+                    # print(f"regenerating loss circuit, for qubit loss {losses_by_instruction_ix}")
+                # print(f'For loop time part 2: {time.time() - start_time_loop2:.6f}s.')
                 DEMs_specific_loss_event.append(hyperedges_matrix_dem) # GB new: matrix without event probability, only the DEM given this event happened.
                 Probs_specific_loss_event.append(event_probability) # Gb: new
+                
+            
+            # print(f'For loop time: {time.time() - start_time_loop:.6f}s.')
+            
             
             start_time = time.time()
             DEM_specific_loss_event_lil = self.combine_DEMs_sum(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
@@ -1009,7 +1021,7 @@ class MLE_Loss_Decoder:
                 print(f"After summing over all DEMs for potential loss events given the loss of qubit {lost_q}, which was detected in round {detection_round_ix}, we got the following DEM_i:")
                 print(DEM_specific_loss_event)
         
-        # print(f'Time to sum over every lossy lifecycle independently: {time.time() - start_time:.4f}s.')      
+        # print(f'Time to sum over every lossy lifecycle independently: {time.time() - start_time_all_losses:.4f}s.')      
         
         # start_time = time.time()
         if self.use_independent_and_first_comb_decoder and len(self.potential_losses_by_instruction_index) > 1:
@@ -1039,7 +1051,7 @@ class MLE_Loss_Decoder:
         # print(f'Time to generate the loss combination DEM: {time.time() - start_time:.4f}s.')      
         
         # sum over all loss DEMs:
-        # start_time = time.time()
+        start_time = time.time()
         final_hyperedges_matrix = self.combine_DEMs_high_order_csr(DEMs_list=DEMs_loss_pauli_events, num_detectors=num_detectors, Probs_list=Probs_loss_pauli_events) # GB: new Probs_loss_pauli_events. TODO: change this function to also get Probs_loss_pauli_events
         # print(f'New method: Time to sum over all DEMS (independent, combination, Pauli) with high order equation: {time.time() - start_time:.4f}s.')      
         

@@ -122,39 +122,31 @@ class LogicalCircuit(stim.Circuit):
         self.measurement_error_rate = measurement_error_rate
         self.measurement_loss_rate = measurement_loss_rate
 
-        # If ancilla error rates aren't specified, default to the values of the data qubits
-        if ancilla_idle_loss_rate is None:
-            self.ancilla_idle_loss_rate = self.idle_loss_rate
-        else:
-            self.ancilla_idle_loss_rate = ancilla_idle_loss_rate
+        # If ancilla error rates aren't specified, default to the values of the data qubits (almost!)
+        def set_ancilla_rate(ancilla_rate, data_rate):
+            if ancilla_rate is None or np.array_equal(ancilla_rate, data_rate):
+                if isinstance(data_rate, (tuple, list)):
+                    return tuple(x + 1e-10 for x in data_rate)
+                elif isinstance(data_rate, (float, np.float64)):
+                    return data_rate + 1e-10
+                elif isinstance(data_rate, np.ndarray):
+                    return data_rate + 1e-10
+                else:
+                    raise TypeError("Unsupported data_rate type. Expected tuple, list, float, or numpy array.")
+            else:
+                return ancilla_rate
 
-        if ancilla_idle_error_rate is None:
-            self.ancilla_idle_error_rate = self.idle_error_rate
-        else:
-            self.ancilla_idle_error_rate = ancilla_idle_error_rate
-
-        if ancilla_reset_loss_rate is None:
-            self.ancilla_reset_loss_rate = self.reset_loss_rate
-        else:
-            self.ancilla_reset_loss_rate = ancilla_reset_loss_rate
-
-        if ancilla_reset_error_rate is None:
-            self.ancilla_reset_error_rate = self.reset_error_rate
-        else:
-            self.ancilla_reset_error_rate = ancilla_reset_error_rate
-
-        if ancilla_measurement_loss_rate is None:
-            self.ancilla_measurement_loss_rate = self.measurement_loss_rate
-        else:
-            self.ancilla_measurement_loss_rate = ancilla_measurement_loss_rate
-
-        if ancilla_measurement_error_rate is None:
-            self.ancilla_measurement_error_rate = self.measurement_error_rate
-        else:
-            self.ancilla_measurement_error_rate = ancilla_measurement_error_rate
+        self.ancilla_idle_loss_rate = set_ancilla_rate(ancilla_idle_loss_rate, self.idle_loss_rate)
+        self.ancilla_idle_error_rate = set_ancilla_rate(ancilla_idle_error_rate, self.idle_error_rate)
+        self.ancilla_reset_loss_rate = set_ancilla_rate(ancilla_reset_loss_rate, self.reset_loss_rate)
+        self.ancilla_reset_error_rate = set_ancilla_rate(ancilla_reset_error_rate, self.reset_error_rate)
+        self.ancilla_measurement_loss_rate = set_ancilla_rate(ancilla_measurement_loss_rate, self.measurement_loss_rate)
+        self.ancilla_measurement_error_rate = set_ancilla_rate(ancilla_measurement_error_rate, self.measurement_error_rate)
 
         self._without_loss = stim.Circuit()
-        
+
+
+
         # print(self.reset_loss_rate)
         # print(self.measurement_loss_rate)
         
@@ -350,6 +342,7 @@ class LogicalCircuit(stim.Circuit):
             if len(ancilla_qubits) > 0:
                 noisy_circuit.append('X_ERROR', ancilla_qubits,
                                      [self.ancilla_measurement_error_rate * self.spam_noise_scale_factor])
+            
             loss_prob = self.measurement_loss_rate * self.loss_noise_scale_factor
             if loss_prob > 0 and add_to_potential_loss:
                 noisy_circuit.append('I', data_qubits)
@@ -377,7 +370,7 @@ class LogicalCircuit(stim.Circuit):
                                  np.array(self.entangling_zone_error_rate) * self.gate_noise_scale_factor)
             # qubits in the entangling zone also get loss:
             qubits = np.setdiff1d(list(self.entangling_zone),
-                                  list(self.no_noise_zone))  # entangling zone minus no noise zone
+                                list(self.no_noise_zone))  # entangling zone minus no noise zone
             loss_prob = self.entangling_gate_loss_rate * self.loss_noise_scale_factor
             if loss_prob > 0 and add_to_potential_loss:
                 noisy_circuit.append('I', qubits)
@@ -414,7 +407,7 @@ class LogicalCircuit(stim.Circuit):
         if qec.is_single_qubit(operation.name):
             # Add single qubit noise only on the qubits we do the operation on
             noisy_circuit.append('PAULI_CHANNEL_1', [t.value for t in operation.targets_copy() if t.value
-                                                     not in self.no_noise_zone],
+                                                    not in self.no_noise_zone],
                                  np.array(self.single_qubit_error_rate) * self.gate_noise_scale_factor)
             qubits = np.setdiff1d(list(self.qubit_indices), list(self.no_noise_zone))
             loss_prob = self.single_qubit_loss_rate * self.loss_noise_scale_factor

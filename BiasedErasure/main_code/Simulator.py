@@ -529,7 +529,7 @@ class Simulator:
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        #LogicalCircuit.logical_qubits[0].visualize_code()
+        # LogicalCircuit.logical_qubits[0].visualize_code()
         
         
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
@@ -555,8 +555,13 @@ class Simulator:
         elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
             MLE_Loss_Decoder_class.circuit = LogicalCircuit
         
+        # print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+        
         if self.printing:
             print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+            print(f"len potential_lost_qubits: {len(LogicalCircuit.potential_lost_qubits)}")
+            print(f"potential_lost_qubits: {list(LogicalCircuit.potential_lost_qubits)}")
+            print(f"loss_probabilities: {LogicalCircuit.loss_probabilities}")
             # print(f"Vanilla circuit without any pulses: \n{LogicalCircuit_no_pulses}")
         
             
@@ -587,8 +592,8 @@ class Simulator:
                     print("Shot:", end = " ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
-                    #if shot % 100 == 0:
-                    #    print(shot, end = " ")
+                    if shot % 100 == 0:
+                        print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
