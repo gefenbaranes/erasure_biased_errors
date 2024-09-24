@@ -61,6 +61,28 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
 
                 return predictions, log_probabilities, observable_flips, dems_list
 
+def get_simulated_measurement_events(Meta_params, dx: int, dy: int, num_shots: int, noise_params: dict = {}):
+
+        # Step 0 - generate the Simulator class:
+        bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
+        # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
+        cycles = int(Meta_params['cycles'])
+        Meta_params['LD_method'] = 'None'
+        
+        simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=0.0,
+                                bloch_point_params=bloch_point_params, noise=atom_array , 
+                                phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
+                                cycles = cycles, output_dir="", save_filename=None, save_data_during_sim=True)
+        
+        
+        measurement_events_all_shots, detection_events_all_shots, observable_flips_all_shots, LogicalCircuit = simulator.sampling_with_loss(num_losses = num_shots, num_shots_per_loss = 1, 
+                                                                                                dx = dx, dy = dy, noise_params=noise_params, 
+                                                                                                sample_from_given_loss_pattern = False, 
+                                                                                                loss_detection_events_all_shots = None)
+
+        return measurement_events_all_shots, detection_events_all_shots, observable_flips_all_shots, LogicalCircuit
+
+
 
 def get_detection_events_experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray):
         """This function takes the measurement events, and generates detection events and observables filps."""        

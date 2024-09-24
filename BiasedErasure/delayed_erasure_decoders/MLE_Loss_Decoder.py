@@ -993,7 +993,7 @@ class MLE_Loss_Decoder:
                 else:
                     hyperedges_matrix_dem = self.generate_dem_loss_circuit(losses_by_instruction_ix = losses_by_instruction_ix, 
                                                                         remove_gates_due_to_loss=remove_gates_due_to_loss) # GB: changed event prob to 1
-                    # print(f"regenerating loss circuit, for qubit loss {losses_by_instruction_ix}")
+                    print(f"Preprocessing is not working well --> regenerating loss circuit, for qubit loss {losses_by_instruction_ix}")
                 # print(f'For loop time part 2: {time.time() - start_time_loop2:.6f}s.')
                 DEMs_specific_loss_event.append(hyperedges_matrix_dem) # GB new: matrix without event probability, only the DEM given this event happened.
                 Probs_specific_loss_event.append(event_probability) # Gb: new

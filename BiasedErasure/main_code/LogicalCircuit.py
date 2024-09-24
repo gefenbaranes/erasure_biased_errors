@@ -8,7 +8,6 @@ from qec import LogicalCode, tools
 from typing import List, Union, Optional, Callable, Iterable, Sized
 import random
 
-
 class LogicalCircuit(stim.Circuit):
     def __init__(self, logical_qubits: List[LogicalCode],
                 gate_noise: Optional[
@@ -19,20 +18,20 @@ class LogicalCircuit(stim.Circuit):
                 gate_noise_scale_factor: float = 1.0,
                 loss_noise_scale_factor: float = 1.0,
                 spam_noise_scale_factor: float = 1.0,
-                idle_loss_rate: float = 1e-06,
-                idle_error_rate: tuple = (2.e-07, 2.e-06, 8.e-06),
-                entangling_zone_error_rate: tuple = (0.0005 , 0.0005 , 0.00125),
-                entangling_gate_error_rate: tuple = (5.00e-03, 5.00e-05, 6.25e-04, 5.00e-05, 5.00e-05, 5.00e-06, 5.00e-06, 5.00e-05, 5.00e-05, 5.00e-04, 5.00e-05, 6.25e-03, 5.00e-04, 5.00e-05, 1.25e-04), 
+                idle_loss_rate: float = 6.309193232062187e-08,
+                idle_error_rate: tuple = (9.02913693e-09, 3.18504909e-08, 1.16144569e-06),
+                entangling_zone_error_rate: tuple = (1.04139008e-04, 1.35017074e-05, 1.90883958e-03),
+                entangling_gate_error_rate: tuple = (1.6800690749028758e-05, 0.0003593259863941469, 0.0006157368426828966, 1.6800690749028758e-05, 0, 0, 0, 0.0003593259863941469, 0, 0, 0, 0.0006157368426828966, 0, 0, 0.0012546625632592551), 
                 erasure_ratio: float = 0.0,
-                entangling_gate_loss_rate: float = 0.00125,
-                entangling_gate_correlated_loss_rate: float = .0005/4,
+                entangling_gate_loss_rate: float = 0.0016598578449429316,
+                entangling_gate_correlated_loss_rate: float = 0,
                 single_qubit_loss_rate: float = 0.0,
-                single_qubit_error_rate: tuple = (0.001, 0.001, 0.001),
-                reset_error_rate: float = 0.03, measurement_error_rate: float = 0.006,
-                reset_loss_rate: float = 0.0006, measurement_loss_rate: float = 0.006,
-                ancilla_idle_loss_rate: float = None, ancilla_idle_error_rate: tuple = None,
-                ancilla_reset_error_rate: float = None, ancilla_measurement_error_rate: float = None,
-                ancilla_reset_loss_rate: float = None, ancilla_measurement_loss_rate: float = None,
+                single_qubit_error_rate: tuple = (4.44574963e-05, 1.20258220e-04, 7.48173488e-05),
+                reset_error_rate: float = 0.00033737913782721634, measurement_error_rate: float = 0.0014989883109622702,
+                reset_loss_rate: float = 0.0031064464259778365, measurement_loss_rate: float = 0.009257094234993605,
+                ancilla_idle_loss_rate: float = 1.7308745478966232e-07, ancilla_idle_error_rate: tuple = (3.89737366e-08, 2.20486666e-08, 2.35800336e-06),
+                ancilla_reset_error_rate: float = 0.05699373711411181, ancilla_measurement_error_rate: float = 0.009401322473053326,
+                ancilla_reset_loss_rate: float = 0.0009450105000758211, ancilla_measurement_loss_rate: float = 0.0013587219962043042,
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False,
@@ -71,15 +70,10 @@ class LogicalCircuit(stim.Circuit):
         self.circuit_index = circuit_index
 
         if gate_noise is None:
-            if self.atom_array_sims:
-                self.gate_noise = self.standard_gate_noise
-            else:
-                self.gate_noise = self.biased_erasure_entangling_noise
+            self.gate_noise = self.ancilla_data_differentiated_gate_noise
         if idle_noise is None:
-            if self.atom_array_sims:
-                self.idle_noise = self.standard_idle_noise
-            else:
-                self.idle_noise = self.no_idle_noise
+            self.idle_noise = self.ancilla_data_differentiated_idle_noise
+
 
         # Rename physical indices to account for multiple logical qubits
         for (_, logical_qubit) in enumerate(self.logical_qubits):
