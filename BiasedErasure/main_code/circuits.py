@@ -92,20 +92,17 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
             SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
             SWAP_round_index += 1
         
-        # # DEBUGGING - start:
-        # if round_ix == 2 and replace_H_Ry: 
-        #     lc.replace_H_Ry = True
-        # else:
-        #     lc.replace_H_Ry = False
-        # # DEBUGGING - end
-        
-        
+
         put_detectors = False if round_ix == 0 else True
         init_round = True if round_ix == 0 else False
         # if not init_round:
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
         if xzzx: # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
-            lc.append(qec.surface_code.measure_stabilizers_xzzx, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
+            
+            # new version of stabilizer checks to fix weight=2 checks:
+            lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
+
+            # lc.append(qec.surface_code.measure_stabilizers_xzzx, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
         else:
             lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
         lc.append_from_stim_program_text("""TICK""") # starting a QEC round
