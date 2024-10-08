@@ -654,13 +654,13 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+                detection_events = detection_events_flipped.astype(np.bool_)
             
             if self.printing:
                 print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
@@ -736,13 +736,13 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
                 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             
             if self.decoder == "MLE":
@@ -933,13 +933,13 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(
                 measurements=measurement_events_no_loss, separate_observables=True)
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
             # Creating the predictions using the DEM:
@@ -1006,13 +1006,13 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             if self.decoder == "MLE":
                 detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False,
