@@ -126,7 +126,7 @@ class Simulator:
         
         elif self.circuit_type == 'logical_CX':
             num_layers = 3
-            num_CX_per_layer = 2
+            num_CX_per_layer = 0
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
