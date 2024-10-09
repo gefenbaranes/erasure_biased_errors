@@ -126,6 +126,102 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     return lc
 
 
+
+def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logicals=2, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 100, atom_array_sim=True, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0):
+    """ This circuit simulated 2 logical qubits, a logical CX experiment with QEC cycles."""
+    assert num_logicals == 2
+    assert atom_array_sim
+    assert xzzx
+    
+    QEC_cycles = num_layers - 1
+    ### Allow different orderings for different rounds
+    if (type(ordering) is list) or (type(ordering) is np.ndarray):
+        if len(ordering) != QEC_cycles:
+            ordering = [ordering[0]]*QEC_cycles
+            if printing:
+                print(f"Incorrect number of orderings given. Defaulting to the first value: {ordering}")
+        else:
+            if printing:
+                print(f"Using orderings: {ordering}")
+    else:
+        ordering = [ordering]*QEC_cycles
+        if printing:
+            print(f"Using orderings: {ordering}")
+    ####
+
+
+    if code == 'Rotated_Surface':
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
+    elif code == 'Surface':
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
+    
+    lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
+                        loss_noise_scale_factor=1, spam_noise_scale_factor=1,
+                        gate_noise_scale_factor=1, idle_noise_scale_factor=1,
+                        atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, **noise_params)
+    
+
+    ###  initialization step:    
+    # initialize qubit 0 in |+> and qubit 1 in |0>:
+    lc.append(qec.surface_code.prepare_plus_no_gates, [0], xzzx=xzzx)
+    lc.append(qec.surface_code.prepare_zero_no_gates, [1], xzzx=xzzx)
+        
+    
+    ### Layers of CX and QEC:
+    QEC_cycles = 0
+    for round_ix in range(num_layers):
+        # in each layer, we have num_CX_per_layer transversal CX gates, then 1 round of QEC. ordering = N.
+        for cx_ix in range(num_CX_per_layer):
+            if cx_ix == 0:
+                lc.append(qec.surface_code.global_h, [0], move_duration=200) # apply this H only on the first layer
+            lc.append(qec.surface_code.global_cz, [0,1], move_duration=200)
+            if cx_ix == num_CX_per_layer - 1:
+                lc.append(qec.surface_code.global_h, [0], move_duration=200) # apply this H only on the last layer
+        
+        if round_ix != num_layers - 1: # Add 1 round of QEC at the end:
+            put_detectors = False if round_ix == 0 else True
+            init_round = True if round_ix == 0 else False
+            lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+            if xzzx: # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
+                previous_meas_offset = 0 if round_ix == 0 else  len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
+                lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [0], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='X', init_round=init_round, automatic_detectors=False, previous_meas_offset=previous_meas_offset) # # new version of stabilizer checks to fix weight=2 checks
+                previous_meas_offset = len(lc.logical_qubits[0].measure_qubits_x) + len(lc.logical_qubits[0].measure_qubits_z) # offset for detectors comparison.
+                lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='Z', init_round=init_round, automatic_detectors=False, previous_meas_offset=previous_meas_offset) # # new version of stabilizer checks to fix weight=2 checks
+            else:
+                lc.append(qec.surface_code.measure_stabilizers, [0], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='X', init_round=init_round, automatic_detectors=False) # append QEC rounds
+                lc.append(qec.surface_code.measure_stabilizers, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='Z', init_round=init_round, automatic_detectors=False) # append QEC rounds
+            QEC_cycles += 1
+            # lc.append_from_stim_program_text("""TICK""") # ending a QEC round
+        
+    ### logical measurement step:    
+    no_ancillas = True if QEC_cycles==0 else False # no QEC rounds at all
+    
+    if logical_basis == 'XZ':
+        previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+        previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+    
+    
+    
+    if logical_basis == 'X':
+        previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+        previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_x, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+    
+    elif logical_basis == 'Z':
+        previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_z, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+        previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
+        lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+            
+    return lc
+
+
+
+
+
 def memory_experiment_surface(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
@@ -495,7 +591,7 @@ def GHZ_experiment_Surface(dx, dy, order, num_logicals, code, QEC_cycles, entang
 
     return lc
     
-    
+
     
 def random_logical_algorithm(code, num_logicals, depth, distance, n_r, bias_ratio, erasure_ratio, phys_err, output_dir):
     # n_r = num rounds. if < 1, every 1/n_r layers we have 1 QEC round. if >=1, every layer we have n_r QEC rounds.

@@ -727,7 +727,10 @@ class MLE_Loss_Decoder:
         def fill_loss_qubits_remove_gates_range(lost_q, instruction_ix):
             round_ix = next((round_ix for round_ix, instructions in sorted(self.rounds_by_ix.items()) if sum(len(self.rounds_by_ix[r]) for r in range(-1, round_ix+1)) > instruction_ix), None)
             # round_ix = round_lookup.get(instruction_ix)
-            [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
+            try: # DEBUG
+                [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
+            except:
+                hi = 1
             # detection_round_offset_start = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < reset_round_ix)
             detection_round_offset_end = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < detection_round_ix + 1)
             
@@ -914,6 +917,8 @@ class MLE_Loss_Decoder:
                         
                         for potential_loss_index in losses_indices_in_round:
                             loss_probability = self.circuit.loss_instruction_indices.get(potential_loss_index, 0)
+                            if loss_probability == 0:
+                                stop = 1
                             self.potential_losses_by_instruction_index[(qubit, detection_round_ix)][potential_loss_index] = [loss_probability, detection_round_ix] # loss index: prob, detection_round_ix         
         if self.printing:
             print(f"potential_losses_by_instruction_index: {self.potential_losses_by_instruction_index}")
@@ -977,7 +982,8 @@ class MLE_Loss_Decoder:
             DEMs_specific_loss_event = []
             Probs_specific_loss_event = [] # GB: new
             total_probability = sum(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]) # CHECK
-            
+            if total_probability == 0:
+                stop=1
             # start_time_loop = time.time()
             for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]:
                 

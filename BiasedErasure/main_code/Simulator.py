@@ -122,7 +122,19 @@ class Simulator:
                 
             elif self.circuit_type == 'random_alg':
                 return random_logical_algorithm(code=self.code, num_logicals = self.num_logicals, depth=self.cycles+1, distance=d, n_r = self.n_r, bias_ratio = self.bias_ratio, erasure_ratio = self.erasure_ratio, phys_err = phys_err, output_dir = self.output_dir)
-            
+        
+        
+        elif self.circuit_type == 'logical_CX':
+            num_layers = 3
+            num_CX_per_layer = 2
+            return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
+                                                num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
+                                                biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
+                                                loss_detection_method = self.loss_detection_method_str, 
+                                                loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
+                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, printing=self.printing, circuit_index = self.circuit_index )
+                
+                
         elif self.circuit_type in ['GHZ_all_o1', 'GHZ_save_o1','GHZ_all_o2', 'GHZ_save_o2']:
             order_1 = []
             order_2 = []
@@ -506,7 +518,7 @@ class Simulator:
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        # LogicalCircuit.logical_qubits[0].visualize_code()
+        # LogicalCircuit.logical_qubits[1].visualize_code()
         
         
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
@@ -654,13 +666,13 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+                detection_events = detection_events_flipped.astype(np.bool_)
             
             if self.printing:
                 print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
@@ -736,13 +748,13 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
                 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             
             if self.decoder == "MLE":
@@ -933,13 +945,13 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(
                 measurements=measurement_events_no_loss, separate_observables=True)
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             print(f"Loss decoder is done! Now starting to decode with {self.decoder}")
             # Creating the predictions using the DEM:
@@ -1006,21 +1018,21 @@ class Simulator:
                 # for shot in measurement_events_no_loss:
                 #     print(measurement_events_no_loss[shot])
 
-            # ### ADDED BACK IN 2024/08/20 BY SG ###
-            # # add normalization step of detection events
-            # if (not simulate_data) and (type(detection_events_signs) != None):
-            #     print('Using detection events signs!')
-            #     detection_events_int = detection_events.astype(np.int32)
-            #     detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
-            #     detection_events = detection_events_flipped.astype(np.bool_)
+            ### ADDED BACK IN 2024/08/20 BY SG ###
+            # add normalization step of detection events
+            if (not simulate_data) and (type(detection_events_signs) != None):
+                print('Using detection events signs!')
+                detection_events_int = detection_events.astype(np.int32)
+                detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
+                detection_events = detection_events_flipped.astype(np.bool_)
 
             if self.decoder == "MLE":
                 detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False,
-                                                                                           approximate_disjoint_errors=True,
-                                                                                           ignore_decomposition_failures=True,
-                                                                                           allow_gauge_detectors=False)
+                                                                                        approximate_disjoint_errors=True,
+                                                                                        ignore_decomposition_failures=True,
+                                                                                        allow_gauge_detectors=False)
                 predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model,
-                                                                                 detector_shots=detection_events)
+                                                                                    detector_shots=detection_events)
 
 
             num_errors = np.sum(np.logical_xor(observable_flips, predictions))
