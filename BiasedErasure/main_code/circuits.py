@@ -198,19 +198,19 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     
     if logical_basis == 'XZ':
         previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
-        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #XI measurement
         previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
-        lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
+        lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #IZ measurement
     
     
     
-    if logical_basis == 'X':
+    if logical_basis == 'XX':
         previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
         lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
         previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
         lc.append(qec.surface_code.measure_x, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
     
-    elif logical_basis == 'Z':
+    elif logical_basis == 'ZZ':
         previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
         lc.append(qec.surface_code.measure_z, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset)
         previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.

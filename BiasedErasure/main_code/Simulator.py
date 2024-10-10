@@ -124,9 +124,10 @@ class Simulator:
                 return random_logical_algorithm(code=self.code, num_logicals = self.num_logicals, depth=self.cycles+1, distance=d, n_r = self.n_r, bias_ratio = self.bias_ratio, erasure_ratio = self.erasure_ratio, phys_err = phys_err, output_dir = self.output_dir)
         
         
-        elif self.circuit_type == 'logical_CX':
+        elif self.circuit_type[:10] == 'logical_CX':
             num_layers = 3
-            num_CX_per_layer = 0
+            num_CX_per_layer = int(self.circuit_type[11:]) if self.circuit_type[11:] != '' else 0
+            print(f"num_CX_per_layer = {num_CX_per_layer}")
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
@@ -558,6 +559,7 @@ class Simulator:
             loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
             sampler = MLE_Loss_Decoder_class.circuit.compile_sampler()
             measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
+            os.makedirs(self.output_dir, exist_ok=True)
             np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
             measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
