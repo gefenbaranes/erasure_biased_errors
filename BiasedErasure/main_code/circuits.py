@@ -130,7 +130,6 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     return lc
 
 
-
 def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logicals=2, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 100, atom_array_sim=True, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0):
     """ This circuit simulated 2 logical qubits, a logical CX experiment with QEC cycles."""
     assert num_logicals == 2
