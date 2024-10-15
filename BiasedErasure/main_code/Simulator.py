@@ -98,7 +98,8 @@ class Simulator:
 
     def generate_circuit(self, dx, dy, cycles, phys_err, replace_H_Ry=False, xzzx=False, noise_params={}):
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_err, self.bias_ratio)
-        if self.circuit_type == 'memory':
+        if self.circuit_type in ['memory', 'memory_wrong']:
+            measure_wrong_basis = True if self.circuit_type == 'memory_wrong' else False
             if self.architecture == 'CBQC':
                 return memory_experiment_surface_new(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles, entangling_gate_error_rate=entangling_gate_error_rate, 
                                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
@@ -106,7 +107,7 @@ class Simulator:
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
-                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, circuit_index = self.circuit_index )
+                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, circuit_index = self.circuit_index, measure_wrong_basis = measure_wrong_basis)
                 
                 # return memory_experiment_surface(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
                 #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,

@@ -16,8 +16,10 @@ from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircui
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
                                 logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0):
-    """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part."""
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0, measure_wrong_basis=False):
+    """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part.
+    If measure_wrong_basis = True: we are measuring in the opposite basis to initialization.
+    """
     assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
     if printing:
         print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
@@ -113,11 +115,13 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     start_time = time.time()
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
     
+    measurement_basis = 'X' if (measure_wrong_basis and logical_basis == 'Z') or (not measure_wrong_basis and logical_basis == 'X') else 'Z' # GB: new. measurement basis can be wrong if we want to
+    
     no_ancillas = True if QEC_cycles==0 else False # added by SG
-    if logical_basis == 'X':
+    if measurement_basis == 'X':
         lc.append(qec.surface_code.measure_x, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas)
     
-    elif logical_basis == 'Z':
+    elif measurement_basis == 'Z':
         lc.append(qec.surface_code.measure_z, list(range(len(logical_qubits))), observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas)
     
     # print(f"final measurement round took: {time.time() - start_time:.6f}s")
