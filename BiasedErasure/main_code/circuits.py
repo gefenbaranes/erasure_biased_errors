@@ -178,7 +178,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
             if cx_ix == num_CX_per_layer - 1:
                 lc.append(qec.surface_code.global_h, [0], move_duration=200) # apply this H only on the last layer
         
-        if round_ix != num_layers - 1: # Add 1 round of QEC at the end:
+        if round_ix != num_layers - 1: # Add 1 round of QEC after the CX gates:
             put_detectors = False if round_ix == 0 else True
             init_round = True if round_ix == 0 else False
             lc.append_from_stim_program_text("""TICK""") # starting a QEC round

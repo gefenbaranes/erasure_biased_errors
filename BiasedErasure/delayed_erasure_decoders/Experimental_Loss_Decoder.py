@@ -7,7 +7,7 @@ from BiasedErasure.main_code.noise_channels import atom_array
 
 def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, 
                                 detection_events_signs: np.ndarray, use_loss_decoding=True,
-                                use_independent_decoder=True, use_independent_and_first_comb_decoder=True, simulate_data=False, first_comb_weight=0.1, noise_params={}, logical_gaps=False):
+                                use_independent_decoder=True, use_independent_and_first_comb_decoder=False, simulate_data=False, first_comb_weight=0.0, noise_params={}, logical_gaps=False):
         
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
@@ -24,6 +24,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         if simulate_data=True: dont use experimental data, simulate it from the stim circuit.
         """
         num_shots = measurement_events.shape[0]
+        # num_shots = 100
 
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}

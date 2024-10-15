@@ -75,7 +75,7 @@ class Simulator:
 
 
         ### Circuit type to use
-        self.circuit_index = Meta_params['circuit_index'] if 'circuit_index' in Meta_params.keys() else 0
+        self.circuit_index = int(Meta_params['circuit_index']) if 'circuit_index' in Meta_params.keys() else 0
 
 
     def get_job_id(self):
@@ -667,10 +667,12 @@ class Simulator:
             measurement_events_no_loss[measurement_events_no_loss == 2] = 0 #change all values in detection_events from 2 to 0
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
+            detection_events_int = detection_events.astype(np.int32)
+            print(detection_events_int)
 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            if (not simulate_data) and (type(detection_events_signs) != None):
+            if (not simulate_data) and detection_events_signs is not None:
                 print('Using detection events signs!')
                 detection_events_int = detection_events.astype(np.int32)
                 detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
@@ -723,7 +725,7 @@ class Simulator:
             # print(MLE_Loss_Decoder_class.circuit)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
             
-            # print(detection_events)
+            print(detection_events)
             # print(f"thats it!")
             
             # DEBUGGING:
@@ -734,7 +736,7 @@ class Simulator:
                 detection_events_int = detection_events.astype(np.int32)
                 detection_events_signs_theory =  np.where(detection_events_int == 0, -1.0, 1.0)
 
-                print(f"detection_events from the pulses circuit = {detection_events_signs_theory[0]}")
+                print(f"detection_events signs from the pulses circuit = {detection_events_signs_theory[0]}")
                 print(f"detection_events signs from the experiment = {detection_events_signs}")
                 are_equal = np.array_equal(detection_events_signs_theory, detection_events_signs)
                 print("Arrays are equal:", are_equal)
@@ -752,7 +754,7 @@ class Simulator:
                 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
-            if (not simulate_data) and (type(detection_events_signs) != None):
+            if (not simulate_data) and detection_events_signs is not None:
                 print('Using detection events signs!')
                 detection_events_int = detection_events.astype(np.int32)
                 detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int) # change ~detection_events_int to 1 - detection_events_int
@@ -949,7 +951,7 @@ class Simulator:
 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events
-            if (not simulate_data) and (type(detection_events_signs) != None):
+            if (not simulate_data) and detection_events_signs is not None:
                 print('Using detection events signs!')
                 detection_events_int = detection_events.astype(np.int32)
                 detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
@@ -1022,7 +1024,7 @@ class Simulator:
 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events
-            if (not simulate_data) and (type(detection_events_signs) != None):
+            if (not simulate_data) and detection_events_signs is not None:
                 print('Using detection events signs!')
                 detection_events_int = detection_events.astype(np.int32)
                 detection_events_flipped = np.where(detection_events_signs == -1,  1 - detection_events_int, detection_events_int)
