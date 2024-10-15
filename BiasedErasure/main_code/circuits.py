@@ -177,10 +177,10 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
         # in each layer, we have num_CX_per_layer transversal CX gates, then 1 round of QEC. ordering = N.
         for cx_ix in range(num_CX_per_layer):
             if cx_ix == 0:
-                lc.append(qec.surface_code.global_h, [0], move_duration=200) # apply this H only on the first layer
+                lc.append(qec.surface_code.global_h, [1], move_duration=200) # apply this H only on the first layer
             lc.append(qec.surface_code.global_cz, [0,1], move_duration=200)
             if cx_ix == num_CX_per_layer - 1:
-                lc.append(qec.surface_code.global_h, [0], move_duration=200) # apply this H only on the last layer
+                lc.append(qec.surface_code.global_h, [1], move_duration=200) # apply this H only on the last layer
         
         if round_ix != num_layers - 1: # Add 1 round of QEC after the CX gates:
             put_detectors = False if round_ix == 0 else True
