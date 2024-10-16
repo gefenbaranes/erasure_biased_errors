@@ -489,7 +489,7 @@ class Simulator:
             experimental_circuit = MLE_Loss_Decoder_class.circuit
 
             measurement_sampler = experimental_circuit.compile_sampler()
-            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots_per_loss)
+            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots)
             
             
             detection_events_all_shots, observable_flips_all_shots = experimental_circuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
