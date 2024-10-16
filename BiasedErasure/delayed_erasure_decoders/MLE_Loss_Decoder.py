@@ -517,7 +517,7 @@ class MLE_Loss_Decoder:
                     for qubit in targets:
                         self.measurement_map[measurement_index] = (qubit, round_index)
                         measurement_index += 1
-        
+        print(f"final measurement_index = {measurement_index}")
         
     def generate_measurement_ix_to_instruction_ix_map(self):
         # Build a mapping from measurement indices to qubits and measurement rounds. 
@@ -727,10 +727,8 @@ class MLE_Loss_Decoder:
         def fill_loss_qubits_remove_gates_range(lost_q, instruction_ix):
             round_ix = next((round_ix for round_ix, instructions in sorted(self.rounds_by_ix.items()) if sum(len(self.rounds_by_ix[r]) for r in range(-1, round_ix+1)) > instruction_ix), None)
             # round_ix = round_lookup.get(instruction_ix)
-            try: # DEBUG
-                [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
-            except:
-                hi = 1
+            [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
+            
             # detection_round_offset_start = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < reset_round_ix)
             detection_round_offset_end = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < detection_round_ix + 1)
             
@@ -1390,6 +1388,7 @@ class MLE_Loss_Decoder:
                         
         Pauli_DEM = circuit_for_Pauli_dem.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True) # GB: new Oct24, allow_gauge_detectors = True to allow DEM generation when meas basis is wrong. 
         
+        # print(f"Pauli_DEM = {Pauli_DEM}")
         # Convert the DEM into a matrix:
         hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, observables_converted_to_detectors=True)
         hyperedges_matrix_Pauli_DEM = hyperedges_matrix_Pauli_DEM.tocsr()

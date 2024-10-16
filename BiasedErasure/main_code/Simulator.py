@@ -126,7 +126,7 @@ class Simulator:
         
         
         elif self.circuit_type[:10] == 'logical_CX':
-            num_layers = 3
+            num_layers = 3 # num of layers, each one with CX gates and a QEC round at the end.
             num_CX_per_layer = int(self.circuit_type[11:]) if self.circuit_type[11:] != '' else 0
             print(f"num_CX_per_layer = {num_CX_per_layer}")
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
@@ -243,7 +243,7 @@ class Simulator:
         loss_detection_events_all_shots = np.random.rand(num_loss_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities
         
         
-        # LogicalCircuit.logical_qubits[0].visualize_code()
+        # LogicalCircuit.logical_qubits[1].visualize_code()
         # print(LogicalCircuit.loss_probabilities)
         loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
                                                                     basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
@@ -519,7 +519,8 @@ class Simulator:
         
         # Step 1 - generate the experimental circuit in our simulation:
         start_time = time.time()
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params) # real experimental circuit with the added pulses
+        xzzx = True # DEBUG
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=xzzx, noise_params=noise_params) # real experimental circuit with the added pulses
         if self.printing:
             print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
         # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
@@ -528,7 +529,7 @@ class Simulator:
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        # LogicalCircuit.logical_qubits[1].visualize_code()
+        # LogicalCircuit.logical_qubits[0].visualize_code()
         
         
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
@@ -569,7 +570,7 @@ class Simulator:
             sampler = MLE_Loss_Decoder_class.circuit.compile_sampler()
             measurement_events_all_shots = sampler.sample(shots=num_shots) # sample without losses
             os.makedirs(self.output_dir, exist_ok=True)
-            np.save(f"{self.output_dir}/measurement_events_no_loss_pulses.npy", measurement_events_all_shots)
+            np.save(f"{self.output_dir}/measurement_events_CX.npy", measurement_events_all_shots)
             measurement_events_all_shots = measurement_events_all_shots.astype(int)
             measurement_events = convert_qubit_losses_into_measurement_events(LogicalCircuit, ancilla_qubits, data_qubits, loss_detection_events_all_shots, measurement_events_all_shots) # mark 2 if we lost the qubit before its measurement
 
@@ -592,8 +593,8 @@ class Simulator:
                     print("Shot:", end = " ")
                 loss_start_time = time.time()
                 for shot in range(num_shots):
-                    #if shot % 100 == 0:
-                    #    print(shot, end = " ")
+                    if shot % 100 == 0:
+                        print(shot, end = " ")
                     measurement_event = measurement_events[shot] # change it to measurements
                     
                     start_time = time.time()
@@ -677,7 +678,7 @@ class Simulator:
             measurement_events_no_loss = measurement_events_no_loss.astype(np.bool_)
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
             detection_events_int = detection_events.astype(np.int32)
-            print(detection_events_int)
+            # print(detection_events_int)
 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
