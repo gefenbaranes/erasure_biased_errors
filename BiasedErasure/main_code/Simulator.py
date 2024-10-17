@@ -126,7 +126,7 @@ class Simulator:
         
         
         elif self.circuit_type[:10] == 'logical_CX':
-            num_layers = 3 # num of layers, each one with CX gates and a QEC round at the end.
+            num_layers = 2 # num of layers, each one with CX gates and a QEC round at the end.
             num_CX_per_layer = int(self.circuit_type[11:]) if self.circuit_type[11:] != '' else 0
             print(f"num_CX_per_layer = {num_CX_per_layer}")
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
@@ -472,7 +472,7 @@ class Simulator:
                     print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
                     final_loss_circuit = MLE_Loss_Decoder_class.observables_to_detectors(experimental_circuit)
                     final_dem = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
-                    print(f"dem = {final_dem}")
+                    print(f"dem for the lossy circuit = {final_dem}")
                     
                     
             # measurement_events_all_shots = np.array(measurement_events_all_shots).astype(int).reshape((num_losses, num_shots_per_loss, -1))
@@ -489,7 +489,7 @@ class Simulator:
             experimental_circuit = MLE_Loss_Decoder_class.circuit
 
             measurement_sampler = experimental_circuit.compile_sampler()
-            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots_per_loss)
+            measurement_events_all_shots = measurement_sampler.sample(shots=num_shots)
             
             
             detection_events_all_shots, observable_flips_all_shots = experimental_circuit.compile_m2d_converter().convert(measurements=measurement_events_all_shots, separate_observables=True)
@@ -679,6 +679,8 @@ class Simulator:
             detection_events, observable_flips = MLE_Loss_Decoder_class.circuit.compile_m2d_converter().convert(measurements=measurement_events_no_loss, separate_observables=True)
             detection_events_int = detection_events.astype(np.int32)
             # print(detection_events_int)
+            # np.save(f"{self.output_dir}/measurement_events_CX.npy", measurement_events_all_shots)
+
 
             ### ADDED BACK IN 2024/08/20 BY SG ###
             # add normalization step of detection events: - debug - dont normalize the detectors because we have the correct circuit!
