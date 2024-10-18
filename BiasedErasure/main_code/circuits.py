@@ -144,36 +144,53 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
         # we can use only half of the measure qubits, according to the meas basis of the data qubits.
         # if QEC_cycles > 0: we did QEC before, so we need to compare to previous ancilla qubits measurements.
         # if QEC_cycles == 0: no QEC at all. We only need to check Bell pairs between each set of 4 data qubits in each logical (8 body operator).
-        measure_qubits_set = measure_qubits_x if meas_basis == 'X' else measure_qubits_z
-        for meas_q in measure_qubits_set:
-            # meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
-            meas_q_type = meas_basis
-            meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
-            check_ix = measure_qubits_list.index(meas_q)
-            
-            # get the data qubits neighbors:
-            neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q, which=direction) for direction in [0,1,2,3]]
-            all_relevant_neighbor_qubits = sorted([neighbor for neighbor in neighbors_data_q if neighbor is not None])
-            check_ixs = [data_qubits_list.index(i) for i in all_relevant_neighbor_qubits]
-            check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
-            # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
+        if QEC_cycles > 0: # we did some QEC cycles before this transversal measurement
+            measure_qubits_set = measure_qubits_x if meas_basis == 'X' else measure_qubits_z
+            for meas_q in measure_qubits_set:
+                # meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
+                meas_q_type = meas_basis
+                meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
+                check_ix = measure_qubits_list.index(meas_q)
+                
+                # get the data qubits neighbors:
+                neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q, which=direction) for direction in [0,1,2,3]]
+                all_relevant_neighbor_qubits = sorted([neighbor for neighbor in neighbors_data_q if neighbor is not None])
+                check_ixs = [data_qubits_list.index(i) for i in all_relevant_neighbor_qubits]
+                check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+                # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
 
-            if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 6 body operator:
-                check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int(num_of_measure_qubits/2) - check_ix))]
-            elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 6 body operator:
-                check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int((3/2)*num_of_measure_qubits) - check_ix))]
-            
-            else: # X type for L1 or Z type for L0, 5 body operator:
-                check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
-            
-            # print(f"meas_q: {meas_q}, check_targets: {check_targets}")
-            lc.append('DETECTOR', check_targets)
-            # print("detector added")
+                if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 6 body operator:
+                    check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int(num_of_measure_qubits/2) - check_ix))]
+                elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 6 body operator:
+                    check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int((3/2)*num_of_measure_qubits) - check_ix))]
+                else: # X type for L1 or Z type for L0, 5 body operator:
+                    check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
                 
+                # print(f"meas_q: {meas_q}, check_targets: {check_targets}")
+                lc.append('DETECTOR', check_targets)
+                # print("detector added")
+                    
+        else: # no QEC in this circuit. build 8 body operators between sets of data qubits.
+                for (data_q0, data_q1) in zip(data_qubits_L0, data_qubits_L1):
+                    data_qubits_pair = [data_q0, data_q1]
+                    check_ixs = [data_qubits_list.index(i) for i in data_qubits_pair]
+                    check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+                    lc.append('DETECTOR', check_targets)
+            
+                # for (meas_q0, meas_q1) in zip(measure_qubits_L0, measure_qubits_L1):
+                #     neighbors_L0 = [lc.logical_qubits[0].neighbor_from_index(physical_index=meas_q0, which=direction) for direction in [0,1,2,3]]
+                #     neighbors_L1 = [lc.logical_qubits[1].neighbor_from_index(physical_index=meas_q1, which=direction) for direction in [0,1,2,3]]
+                #     all_relevant_data_qubits = sorted([neighbor for neighbor in neighbors_L0 + neighbors_L1 if neighbor is not None])
+                #     data_qubits_list = data_qubits.tolist()
+
+                #     check_ixs = [data_qubits_list.index(i) for i in all_relevant_data_qubits]
+                #     check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+                #     lc.append('DETECTOR', check_targets)
                 
+
+
     
-    
-    QEC_cycles = num_layers - 1
+    # QEC_cycles = num_layers - 1
     # ### Allow different orderings for different rounds
     # if (type(ordering) is list) or (type(ordering) is np.ndarray):
     #     if len(ordering) != QEC_cycles:
