@@ -139,9 +139,11 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     assert xzzx
     
     
-    def construct_detectors_data_qubits_measurement(meas_basis):
+    def construct_detectors_data_qubits_measurement(meas_basis, QEC_cycles):
         # construct the 5 / 6 body operators between the logicals and with previous rounds (using data qubits).
         # we can use only half of the measure qubits, according to the meas basis of the data qubits.
+        # if QEC_cycles > 0: we did QEC before, so we need to compare to previous ancilla qubits measurements.
+        # if QEC_cycles == 0: no QEC at all. We only need to check Bell pairs between each set of 4 data qubits in each logical (8 body operator).
         measure_qubits_set = measure_qubits_x if meas_basis == 'X' else measure_qubits_z
         for meas_q in measure_qubits_set:
             # meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
@@ -155,15 +157,13 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
             check_ixs = [data_qubits_list.index(i) for i in all_relevant_neighbor_qubits]
             check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
             # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
-            if meas_q_logical == 1:
-                stop = 1
+
             if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 6 body operator:
                 check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int(num_of_measure_qubits/2) - check_ix))]
             elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 6 body operator:
                 check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int((3/2)*num_of_measure_qubits) - check_ix))]
-                # check_targets = check_targets_data +  [stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
-            # X type for L1 or Z type for L0, 5 body operator:
-            else:
+            
+            else: # X type for L1 or Z type for L0, 5 body operator:
                 check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
             
             # print(f"meas_q: {meas_q}, check_targets: {check_targets}")
@@ -308,7 +308,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     
     if logical_basis == 'XX':
         lc.append(qec.surface_code.measure_x, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
-        construct_detectors_data_qubits_measurement(meas_basis = 'X')
+        construct_detectors_data_qubits_measurement(meas_basis = 'X', QEC_cycles=QEC_cycles)
         
         logical_xx_rec = []
         for index in range(num_logicals): 
@@ -323,7 +323,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     
     elif logical_basis == 'ZZ':
         lc.append(qec.surface_code.measure_z, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
-        construct_detectors_data_qubits_measurement(meas_basis = 'Z')
+        construct_detectors_data_qubits_measurement(meas_basis = 'Z', QEC_cycles=QEC_cycles)
         
         logical_zz_rec = []
         for index in range(num_logicals): 
