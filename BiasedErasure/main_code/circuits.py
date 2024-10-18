@@ -277,7 +277,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
                     # lc.append(qec.surface_code.measure_stabilizers, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='Z', init_round=init_round, automatic_detectors=False) # append QEC rounds
                     
             ## constructing detectors for each layer differently:
-            if round_ix == 0: # first layer, we put 8 body oeprators for the detectors.
+            if round_ix == 0: # first layer, we put 8 body operators for the detectors.
                 # construct the 2 body operators between the logicals:
                 for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)):
                 # for meas_q in measure_qubits_L0:
@@ -298,9 +298,11 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
                     # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
                     
                     if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 3 body operator:
-                        check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int(num_of_measure_qubits/2) - check_ix))]
-                    elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 3 body operator:
+                        # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int(num_of_measure_qubits/2) - check_ix))]
                         check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
+                    elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 3 body operator:
+                        # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
+                        check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((5/2)*num_of_measure_qubits) - check_ix))]
                     # X type for L1 or Z type for L0, 2 body operator:
                     else:
                         check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix))]

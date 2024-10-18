@@ -1011,8 +1011,7 @@ class MLE_Loss_Decoder:
             DEM_specific_loss_event = DEM_specific_loss_event_lil.tocsr()
             
             # DEBUG - try the high order equation:
-            
-            # DEM_specific_loss_event = self.combine_DEMs_high_order_csr(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event)
+            # DEM_specific_loss_event = self.combine_DEMs_high_order_csr(DEMs_list=DEMs_specific_loss_event, num_detectors=num_detectors, Probs_list=Probs_specific_loss_event) # debug
             
             
             # print(f'Time to combine DEMs regularly: {time.time() - start_time:.6f}s.')
