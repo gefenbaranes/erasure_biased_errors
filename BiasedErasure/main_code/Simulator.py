@@ -18,6 +18,7 @@ from hashlib import sha256
 import pickle
 from BiasedErasure.main_code.XZZX import XZZX
 import itertools
+import re
 
 
 class Simulator:
@@ -126,8 +127,9 @@ class Simulator:
         
         
         elif self.circuit_type[:10] == 'logical_CX':
-            num_layers = int(self.circuit_type[13:14]) # num of layers, each one with CX gates and a QEC round at the end (except the last layer, no QEC afterwards)
-            num_CX_per_layer = int(self.circuit_type[18:19])
+            num_layers, num_CX_per_layer = map(int, re.findall(r'\d+', self.circuit_type))
+            # num_layers = int(self.circuit_type[13:14]) # num of layers, each one with CX gates and a QEC round at the end (except the last layer, no QEC afterwards)
+            # num_CX_per_layer = int(self.circuit_type[18:19])
             print(f"num_layers = {num_layers}")
             print(f"num_CX_per_layer = {num_CX_per_layer}")
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
