@@ -33,7 +33,7 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
                     baseline['reset_loss_rate'], baseline['measurement_loss_rate'],
                     baseline['ancilla_idle_loss_rate'], *baseline['ancilla_idle_error_rate'],
                     baseline['ancilla_reset_error_rate'], baseline['ancilla_measurement_error_rate'],
-                    baseline['ancilla_reset_loss_rate'], baseline['ancilla_measurement_loss_rate']]) * 10
+                    baseline['ancilla_reset_loss_rate'], baseline['ancilla_measurement_loss_rate']]) * 3
 
     # Set a unique random seed based on the job_id to ensure different initial points for each job
     np.random.seed(job_id)
@@ -44,7 +44,6 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
     def objective(noise_params):
         # Scale the baseline by the noise parameters
         noise_params = baseline / (1 + np.exp(-np.array(noise_params)))
-        print(noise_params)
         noise_params = dict(
             idle_loss_rate=noise_params[0],
             idle_error_rate=noise_params[1:4],
@@ -66,7 +65,7 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
             gate_noise=LogicalCircuit.ancilla_data_differentiated_gate_noise,
             idle_noise=LogicalCircuit.ancilla_data_differentiated_idle_noise
         )
-
+        print(noise_params)
         # Loss decoder parameters
         use_loss_decoding = True
         use_independent_decoder = True
@@ -81,7 +80,7 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
         loss = np.mean(np.logical_xor(predictions, observable_flips)).squeeze()
 
         # Save intermediate results
-        with open(f'intermediate_results_cma_update_noise_model_{decoder_basis}_v3.pkl', 'ab') as f:
+        with open(f'intermediate_results_cma_update_noise_model_{decoder_basis}_maddie.pkl', 'ab') as f:
             pickle.dump({'params': noise_params, 'loss': loss}, f)
         print(f"intermediate fidelity = {1 - loss}")
 
@@ -91,10 +90,6 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
     xopt, es = cma.purecma.fmin(
         lambda x: objective(x), initial_point, 0.5,
         maxfevals=1000, verb_disp=1, verb_log=1, verb_save=1)
-
-    # Save final results
-    with open(f'final_results_gradient_{decoder_basis}_v3.pkl', 'wb') as f:
-        pickle.dump({'params': xopt, 'result': es}, f)
 
     return xopt, es
 
@@ -107,7 +102,7 @@ num_rounds = 5
 
 # Load measurement events
 measurement_events = np.load(f'measurement_events_{decoder_basis}_NZZrNr_2024_10_06.npy')
-output_dir = '/n/holyscratch01/lukin_lab/gbaranes/atom_array_experiment/Results/Oct_24/optimize_cma'
+output_dir = '.'
 
 # Split data into training and testing, first half is training
 num_of_shots = len(measurement_events) // 2

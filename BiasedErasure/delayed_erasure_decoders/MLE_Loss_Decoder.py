@@ -863,7 +863,7 @@ class MLE_Loss_Decoder:
             print("Preprocessing all loss circuits, one time only and it will be saved for next times!")
         
         
-        os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
+        #os.makedirs(os.path.dirname(full_filename), exist_ok=True) # Ensure the directory exists
 
         self.circuit_independent_dems = {}
         instruction_ix = 0

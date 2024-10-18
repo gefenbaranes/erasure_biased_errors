@@ -4,7 +4,7 @@ import pickle
 import cma
 
 # Set parameters
-decoder_basis = 'Z'
+decoder_basis = 'X'
 distance = 5
 num_rounds = 5
 
@@ -123,36 +123,29 @@ Meta_params = {
     'loss_decoder': 'independent', 'obs_pos': 'd-1', 'n_r': '0'
 }
 
-optimize_for_detector_match(measurement_events, Meta_params, output_dir, decoder_basis, 0)
+#optimize_for_detector_match(measurement_events, Meta_params, output_dir, decoder_basis, 0)
 
-
-with (open('intermediate_results_cma_update_noise_model_X_detectors..pkl', "rb")) as openfile:
-    while True:
-        try:
-            data = pickle.load(openfile)
-            params = data['params']
-            loss = data['loss']
+openfile = (open('intermediate_results_cma_update_noise_model_X_maddie.pkl', "rb"))
+openfile.seek(0)
+losses = []
+_ = 0
+while True:
+    try:
+        data = pickle.load(openfile)
+        params = data['params']
+        loss = data['loss']
+        losses.append(1-loss)
+        if True:
             if loss < best_loss:
                 best_loss = loss
                 best_params = params
-        except EOFError:
-            break
+        _ += 1
+    except EOFError:
+        break
 
-print(best_loss, best_params)
-
-with (open('intermediate_results_sa_update_noise_model_X_detectors.pkl', "rb")) as openfile:
-    while True:
-        try:
-            data = pickle.load(openfile)
-            params = data['params']
-            loss = data['loss']
-            if loss < best_loss:
-                best_loss = loss
-                best_params = params
-        except EOFError:
-            break
-
-print(best_loss, best_params)
+plt.plot(losses)
+plt.show()
+print(1-best_loss, best_params)
 
 # Now let's decode!
 use_loss_decoding = True  # if False: use same DEM every shot, without utilizing SSR.
@@ -161,7 +154,7 @@ use_independent_and_first_comb_decoder = False  # This is relevant only if use_i
 output_dir = '.'
 simulate_data = False
 
-
+print(best_params)
 simulated_measurements, simulated_detectors, simulated_observables, circuit = get_simulated_measurement_events(Meta_params, distance, distance, 1000, noise_params=best_params)
 detection_events, observable_flips = circuit.compile_m2d_converter().convert(measurements=measurement_events.astype(bool), separate_observables=True)
 plt.plot(np.mean(detection_events, axis=0), label='exp')

@@ -35,7 +35,7 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
                     baseline['reset_loss_rate'], baseline['measurement_loss_rate'],
                     baseline['ancilla_idle_loss_rate'], *baseline['ancilla_idle_error_rate'],
                     baseline['ancilla_reset_error_rate'], baseline['ancilla_measurement_error_rate'],
-                    baseline['ancilla_reset_loss_rate'], baseline['ancilla_measurement_loss_rate']]) * 10
+                    baseline['ancilla_reset_loss_rate'], baseline['ancilla_measurement_loss_rate']]) * 3
 
     # Set a unique random seed based on the job_id to ensure different initial points for each job
     np.random.seed(job_id)
@@ -46,7 +46,6 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
     def objective(noise_params):
         # Scale the baseline by the noise parameters
         noise_params = baseline / (1 + np.exp(-np.array(noise_params)))
-        print(noise_params)
         noise_params = dict(
             idle_loss_rate=noise_params[0],
             idle_error_rate=noise_params[1:4],
@@ -68,6 +67,7 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
             gate_noise=LogicalCircuit.ancilla_data_differentiated_gate_noise,
             idle_noise=LogicalCircuit.ancilla_data_differentiated_idle_noise
         )
+        print(noise_params)
 
         # Loss decoder parameters
         use_loss_decoding = True
@@ -93,10 +93,6 @@ def optimize_theory_fidelity(measurement_events, Meta_params, output_dir, decode
     xopt, es = cma.purecma.fmin(
         lambda x: objective(x), initial_point, 0.5,
         maxfevals=1000, verb_disp=1, verb_log=1, verb_save=1)
-
-    # Save final results
-    with open(f'final_results_gradient_{decoder_basis}_maddie.pkl', 'wb') as f:
-        pickle.dump({'params': xopt, 'result': es}, f)
 
     return xopt, es
 

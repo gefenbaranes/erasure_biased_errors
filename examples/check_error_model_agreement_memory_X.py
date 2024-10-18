@@ -123,10 +123,10 @@ Meta_params = {
     'loss_decoder': 'independent', 'obs_pos': 'd-1', 'n_r': '0'
 }
 
-optimize_for_detector_match(measurement_events, Meta_params, output_dir, decoder_basis, 0)
+#optimize_for_detector_match(measurement_events, Meta_params, output_dir, decoder_basis, 0)
 
 
-with (open('intermediate_results_cma_update_noise_model_X_detectors..pkl', "rb")) as openfile:
+with (open('intermediate_results_cma_update_noise_model_X_v3.pkl', "rb")) as openfile:
     while True:
         try:
             data = pickle.load(openfile)
@@ -140,7 +140,7 @@ with (open('intermediate_results_cma_update_noise_model_X_detectors..pkl', "rb")
 
 print(best_loss, best_params)
 
-with (open('intermediate_results_sa_update_noise_model_X_detectors.pkl', "rb")) as openfile:
+with (open('intermediate_results_sa_update_noise_model_X_v3.pkl', "rb")) as openfile:
     while True:
         try:
             data = pickle.load(openfile)

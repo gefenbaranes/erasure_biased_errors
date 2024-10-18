@@ -5,7 +5,31 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7b8e3d29-f6c7-4b4e-a51c-0a02960b834e" name="Changes" comment="- added data and ancilla distinguished error model">
-      <change beforePath="$PROJECT_DIR$/BiasedErasure/main_code/Simulator.py" beforeDir="false" afterPath="$PROJECT_DIR$/BiasedErasure/main_code/Simulator.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/DetectorCalculation.ipynb" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/check_error_model_agreement_cnot.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/check_error_model_agreement_cnot_2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/gefen_code_check.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_CNOT_detectors.pkl" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_X_maddie.pkl" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/repeated_cnot_scaling_plots.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/repeated_cnot_scaling_plots_2.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/examples/repeated_cnot_scaling_plots_3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/erasure_biased_errors.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/erasure_biased_errors.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/BiasedErasure/delayed_erasure_decoders/MLE_Loss_Decoder.py" beforeDir="false" afterPath="$PROJECT_DIR$/BiasedErasure/delayed_erasure_decoders/MLE_Loss_Decoder.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/BiasedErasure/main_code/circuits.py" beforeDir="false" afterPath="$PROJECT_DIR$/BiasedErasure/main_code/circuits.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/_CMAESDataLogger_datadict.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/_CMAESDataLogger_datadict.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/check_error_model_agreement_memory_X.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/check_error_model_agreement_memory_X.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/check_error_model_agreement_memory_Z.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/check_error_model_agreement_memory_Z.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_X_detectors.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_X_detectors.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_Z_detectors.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_Z_detectors.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_Z_v3.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/examples/intermediate_results_cma_update_noise_model_Z_v3.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/measurement_events_CX.npy" beforeDir="false" afterPath="$PROJECT_DIR$/examples/measurement_events_CX.npy" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/optimize_mle_cma_updated_noise_model_X_v3.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/optimize_mle_cma_updated_noise_model_X_v3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/optimize_mle_cma_updated_noise_model_Z_v3.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/optimize_mle_cma_updated_noise_model_Z_v3.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/examples/repeated_cnot.py" beforeDir="false" afterPath="$PROJECT_DIR$/examples/repeated_cnot.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -29,17 +53,18 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;new__error__model&quot;,
-    &quot;last_opened_file_path&quot;: &quot;/Users/madelyncain/Code/erasure_biased_errors&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.OpenProjectViewOnStart": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "git-widget-placeholder": "Rebasing main",
+    "last_opened_file_path": "/Users/madelyncain/Code/erasure_biased_errors"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Python.Simulator">
     <configuration name="Simulator" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="erasure_biased_errors" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -50,6 +75,7 @@
       <option name="IS_MODULE_SDK" value="true" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/BiasedErasure/main_code/Simulator.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -61,6 +87,7 @@
     </configuration>
     <configuration name="loop_num_cycles" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="erasure_biased_errors" />
+      <option name="ENV_FILES" value="" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
       <envs>
@@ -72,6 +99,7 @@
       <option name="IS_MODULE_SDK" value="false" />
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
       <option name="SCRIPT_NAME" value="$PROJECT_DIR$/examples/loop_num_cycles.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
@@ -138,5 +166,9 @@
     <MESSAGE value="removed more printing" />
     <MESSAGE value="- added data and ancilla distinguished error model" />
     <option name="LAST_COMMIT_MESSAGE" value="- added data and ancilla distinguished error model" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/erasure_biased_errors$check_error_model_agreement_cnot.coverage" NAME="check_error_model_agreement_cnot Coverage Results" MODIFIED="1729216568227" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
+    <SUITE FILE_PATH="coverage/erasure_biased_errors$check_error_model_agreement_memory_Z.coverage" NAME="check_error_model_agreement_memory_Z Coverage Results" MODIFIED="1729216338494" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/examples" />
   </component>
 </project>

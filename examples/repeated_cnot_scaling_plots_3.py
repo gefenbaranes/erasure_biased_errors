@@ -1,0 +1,97 @@
+from BiasedErasure.delayed_erasure_decoders.Experimental_Loss_Decoder import *
+import numpy as np
+
+
+num_rounds = 3
+num_cxs_per_round = np.array([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21])
+errors = np.array([0.16, 0.202, 0.234, 0.292, 0.322, 0.35, 0.384, 0.393, 0.4171, 0.436, 0.4517])
+errors_per_rounds = .5*(1-(1-errors/.5)**(1/(num_rounds*num_cxs_per_round)))
+errors_per_rounds_division = errors / (num_rounds*num_cxs_per_round)
+plt.plot(num_cxs_per_round, errors_per_rounds, marker='o', color='blue', label='fancy formula')
+plt.plot(num_cxs_per_round, errors_per_rounds_division, marker='o', color='red', label='divide by # rounds')
+plt.ylabel('Error per CNOT')
+plt.xlabel('Number of CNOTs per round')
+plt.xticks(num_cxs_per_round)
+plt.legend()
+plt.show()
+num_rounds = 2
+distance = 5
+decoder_basis = 'XX'
+gate_ordering = ['N', 'Z']
+
+
+num_cxs = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21]
+errors = []
+for num_cx in num_cxs:
+    noise_params = {'idle_loss_rate': 2.793300220405646e-07, 'idle_error_rate': np.array([6.60547942e-09, 3.38336163e-08, 2.67533789e-07]),
+                    'entangling_zone_error_rate': np.array([3.66476387e-04, 6.14732819e-06, 2.35857048e-03]),
+                    'entangling_gate_error_rate': [2.2260729018707513e-05, 0.00017139584089578063, 0.0012948317242757047, 2.2260729018707513e-05, 0, 0, 0, 0.00017139584089578063, 0, 0, 0, 0.0012948317242757047, 0, 0, 0.002621736717313752],
+                    'entangling_gate_loss_rate': 0.00039272255674060926, 'single_qubit_error_rate': np.array([1.53681034e-05, 9.93583065e-04, 1.94650113e-05]),
+                    'reset_error_rate': 5.89409983290463e-05, 'measurement_error_rate': 0.0006138700821647161, 'reset_loss_rate': 0.0007531131027610011, 'measurement_loss_rate': 0.07131074481520218, 'ancilla_idle_loss_rate': 1.6989311035347498e-07,
+                    'ancilla_idle_error_rate': np.array([1.46727589e-07, 4.60893305e-08, 2.30298714e-06]), 'ancilla_reset_error_rate': 0.024549181355318986, 'ancilla_measurement_error_rate': 0.0012815874700447462, 'ancilla_reset_loss_rate': 0.00019528486460263086, 'ancilla_measurement_loss_rate': 0.00047357577582906143,
+                    'gate_noise': LogicalCircuit.ancilla_data_differentiated_gate_noise, 'idle_noise': LogicalCircuit.ancilla_data_differentiated_idle_noise}
+
+    Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': decoder_basis,
+                'bias_preserving_gates': 'False',
+                'noise': 'atom_array', 'is_erasure_biased': 'False', 'LD_freq': '1000', 'LD_method': 'None',
+                'SSR': 'True', 'cycles': str(num_rounds - 1),
+                'ordering': gate_ordering,
+                'decoder': 'MLE',
+                'circuit_type': 'logical_CX_{}'.format(num_cx), 'Steane_type': 'None', 'printing': 'False', 'num_logicals': '2',
+                'loss_decoder': 'independent',
+                'obs_pos': 'd-1', 'n_r': '0'}
+
+
+    # Load the experimental measurements
+    exp_measurements = np.load('2024_10_15_measurement_events_1CNOT_XX.npy')#[:100, :]
+    exp_measurements = np.concatenate([exp_measurements[:, 0, :distance**2-1],
+                                       exp_measurements[:, 1, :distance**2-1],
+                                       exp_measurements[:, 0, distance**2-1:2*(distance**2-1)],
+                                       exp_measurements[:, 1, distance**2-1:2*(distance**2-1)],
+                                       exp_measurements[:, 0, 2*(distance**2-1):],
+                                       exp_measurements[:, 1, 2*(distance**2-1):]], axis=1)
+
+    # Load the theory circuit
+    theory_measurements, theory_detectors, theory_observables, circuit = get_simulated_measurement_events(Meta_params, distance, distance, 10000, noise_params)
+    # Use the theory circuit to get the detection events and observable flips corresponding to the exp data
+    print(circuit)
+    exp_detectors, exp_observables = circuit.compile_m2d_converter().convert(measurements=exp_measurements.astype(bool), separate_observables=True)
+    # Find detection event signs
+    exp_detection_events_signs = -np.sign(2*np.nanmean(exp_detectors.astype(int), axis=0)-1).astype(int)
+
+    # Now let's decode!
+    use_loss_decoding = True  # if False: use same DEM every shot, without utilizing SSR.
+    use_independent_decoder = True  # if False: in every lifecycle, we just apply supercheck at the end. If True: we count the full lifecycle with different potential loss locations and corresponding Clifford propagations.
+    use_independent_and_first_comb_decoder = False  # This is relevant only if use_independent_decoder=True. If False: use only independent lifecycles. If True: adds a single combination of lifecycles to the decoder.
+    output_dir = '.'
+    simulate_data = False
+    # DO IT
+    """exp_predictions, exp_observable_flips, dems_list = Loss_MLE_Decoder_Experiment(Meta_params, distance, distance, output_dir,
+                                                                        exp_measurements,
+                                                                        exp_detection_events_signs, use_loss_decoding,
+                                                                        use_independent_decoder,
+                                                                        use_independent_and_first_comb_decoder,
+                                                                        simulate_data=simulate_data, logical_gaps=False,
+                                                                        noise_params=noise_params)
+    
+    exp_logical_probability = np.mean(np.logical_xor(exp_observable_flips, exp_predictions))"""
+
+    #print('infidelity', 1-exp_logical_probability)
+    theory_predictions, theory_observable_flips, dems_list = Loss_MLE_Decoder_Experiment(Meta_params, distance, distance, output_dir,
+                                                                        theory_measurements,
+                                                                        None, use_loss_decoding,
+                                                                        use_independent_decoder,
+                                                                        use_independent_and_first_comb_decoder,
+                                                                        simulate_data=simulate_data, logical_gaps=False,
+                                                                        noise_params=noise_params)
+    print('before decoding', np.mean(theory_observables))
+    theory_logical_probability = np.mean(np.logical_xor(theory_observable_flips, theory_predictions))
+    errors.append(theory_logical_probability)
+    print(errors)
+    print('infidelity', 1-theory_logical_probability)
+
+
+plt.plot(num_cxs, errors, marker='o', color='blue')
+plt.ylabel('Error per CNOT')
+plt.xlabel('Number of CNOTs per round')
+plt.show()
