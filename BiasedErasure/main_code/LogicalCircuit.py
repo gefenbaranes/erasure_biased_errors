@@ -35,7 +35,8 @@ class LogicalCircuit(stim.Circuit):
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False,
-                circuit_index: int = 0):
+                circuit_index: int = 0,
+                circuit_type: str = 'None'):
         """
         Generates a LogicalCircuit, which is a subclass of stim.Circuit() but with additional attributes that are
         atom-array specific.
@@ -68,6 +69,7 @@ class LogicalCircuit(stim.Circuit):
         
         self.replace_H_Ry = replace_H_Ry
         self.circuit_index = circuit_index
+        self.circuit_type = circuit_type
 
         if gate_noise is None:
             self.gate_noise = self.ancilla_data_differentiated_gate_noise

@@ -24,6 +24,8 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     if printing:
         print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
     
+    
+    
     ### Added by SG to allow different orderings for different rounds
     if (type(ordering) is list) or (type(ordering) is np.ndarray):
         if len(ordering) != QEC_cycles:
@@ -60,6 +62,7 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
                             loss_noise_scale_factor=1, spam_noise_scale_factor=1,
                             gate_noise_scale_factor=1, idle_noise_scale_factor=1,
                             atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, **noise_params)
+        
         # lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0; lc.spam_noise_scale_factor = 0; lc.idle_noise_scale_factor = 0 # debugging, without noise
         
     else:
@@ -215,9 +218,11 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                         loss_noise_scale_factor=1, spam_noise_scale_factor=1,
                         gate_noise_scale_factor=1, idle_noise_scale_factor=1,
-                        atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, **noise_params)
+                        atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, circuit_type = 'CX', **noise_params)
     
-
+        
+    
+    
     ###  initialization step:    
     # initialize qubit 0 in |+> and qubit 1 in |0>:
     lc.append(qec.surface_code.prepare_plus_no_gates, [0], xzzx=xzzx)
@@ -254,14 +259,24 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
                     lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=200, sublattice = 'even') # apply this H only on the first layer
                 else:
                     lc.append(qec.surface_code.global_h, [1], move_duration=200) # apply this H only on the first layer
+            
             lc.append(qec.surface_code.global_cz, [0,1], move_duration=200)
-            if cx_ix == num_CX_per_layer - 1:
+            
+            if cx_ix == num_CX_per_layer // 2 : # new GB - add Y pulse on all qubits:
+                lc.append('Y', lc.qubit_indices) 
+                
+            if (cx_ix == num_CX_per_layer - 1) and (round_ix < num_layers - 1): # new GB - for last round_ix, we need to cancel out these pulses with the measurement
                 if xzzx:
                     lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=200, sublattice = 'odd') # apply this H only on the first layer
                     lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=200, sublattice = 'even') # apply this H only on the first layer
                 else:
                     lc.append(qec.surface_code.global_h, [1], move_duration=200) # apply this H only on the first layer
         
+        if round_ix < num_layers - 1:
+            lc.append('Y', lc.qubit_indices)  # new GB - add Y pulse on all qubits:
+                
+                
+                
         ### Round of QEC:
         if num_layers > 1: # we do want some QEC..
             if round_ix < num_layers - 1:
@@ -318,15 +333,22 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
     
     no_ancillas = True if QEC_cycles==0 else False # no QEC rounds at all
     
-    if logical_basis == 'XZ':
-        previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
-        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #XI measurement
-        previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
-        lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #IZ measurement
+    # if logical_basis == 'XZ':
+    #     previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
+    #     lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #XI measurement
+    #     previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
+    #     lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #IZ measurement
     
     
     if logical_basis == 'XX':
-        lc.append(qec.surface_code.measure_x, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
+        # lc.append(qec.surface_code.measure_x, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
+        
+        # new GB - cancel out the H here with the final CX H gates:
+        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0) 
+        lc.append('SQRT_Y', data_qubits_L0)
+        lc.append('M', data_qubits)
+        
+        
         construct_detectors_data_qubits_measurement(meas_basis = 'X', QEC_cycles=QEC_cycles)
         
         logical_xx_rec = []
@@ -341,7 +363,14 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer, num_layers=3, num_logi
         lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_xx_rec), lc.num_observables)
     
     elif logical_basis == 'ZZ':
-        lc.append(qec.surface_code.measure_z, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
+        # lc.append(qec.surface_code.measure_z, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
+        
+        # new GB - cancel out the H here with the final CX H gates:
+        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0) 
+        lc.append('SQRT_Y', data_qubits_L1)
+        lc.append('M', data_qubits)
+        
+        
         construct_detectors_data_qubits_measurement(meas_basis = 'Z', QEC_cycles=QEC_cycles)
         
         logical_zz_rec = []
