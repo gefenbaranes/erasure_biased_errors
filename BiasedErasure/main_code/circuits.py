@@ -226,8 +226,10 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                 
             else:
                 
-                # build 8 body operators between sets of data qubits in each logical.
-                for (meas_q0, meas_q1) in zip(measure_qubits_L0, measure_qubits_L1):
+                # build 8 body operators between sets of data qubits in each logical (only the relevant set according to measurement basis).
+                measure_qubits_0 = lc.logical_qubits[0].measure_qubits_x if meas_bases[0] == 'X' else lc.logical_qubits[0].measure_qubits_z
+                measure_qubits_1 = lc.logical_qubits[1].measure_qubits_x if meas_bases[1] == 'X' else lc.logical_qubits[1].measure_qubits_z
+                for (meas_q0, meas_q1) in zip(measure_qubits_0, measure_qubits_1):
                     neighbors_L0 = [lc.logical_qubits[0].neighbor_from_index(physical_index=meas_q0, which=direction) for direction in [0,1,2,3]]
                     neighbors_L1 = [lc.logical_qubits[1].neighbor_from_index(physical_index=meas_q1, which=direction) for direction in [0,1,2,3]]
                     all_relevant_data_qubits = sorted([neighbor for neighbor in neighbors_L0 + neighbors_L1 if neighbor is not None])
