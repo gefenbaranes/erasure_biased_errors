@@ -129,7 +129,7 @@ class Simulator:
         elif self.circuit_type[:10] == 'logical_CX':
             num_CX_per_layer_list = self.Meta_params["num_CX_per_layer_list"]
             num_layers = len(num_CX_per_layer_list)
-            self.Meta_params['circuit_type'] = f'logical__CX_Nlayers{num_layers}__NCX{"_".join(map(str, num_CX_per_layer_list))}' 
+            self.Meta_params['circuit_type'] = f'logical_CX__Nlayers{num_layers}__NCX{"_".join(map(str, num_CX_per_layer_list))}' 
             print(self.Meta_params['circuit_type'])
             return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer_list=num_CX_per_layer_list, num_layers=num_layers, 
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
