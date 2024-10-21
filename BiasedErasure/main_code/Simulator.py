@@ -127,12 +127,11 @@ class Simulator:
         
         
         elif self.circuit_type[:10] == 'logical_CX':
-            num_layers, num_CX_per_layer = map(int, re.findall(r'\d+', self.circuit_type))
-            # num_layers = int(self.circuit_type[13:14]) # num of layers, each one with CX gates and a QEC round at the end (except the last layer, no QEC afterwards)
-            # num_CX_per_layer = int(self.circuit_type[18:19])
-            print(f"num_layers = {num_layers}")
-            print(f"num_CX_per_layer = {num_CX_per_layer}")
-            return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer=num_CX_per_layer, num_layers=num_layers, 
+            num_CX_per_layer_list = self.Meta_params["num_CX_per_layer_list"]
+            num_layers = len(num_CX_per_layer_list)
+            self.Meta_params['circuit_type'] = f'logical__CX_Nlayers{num_layers}__NCX{"_".join(map(str, num_CX_per_layer_list))}' 
+            print(self.Meta_params['circuit_type'])
+            return CX_experiment_surface(dx=dx, dy=dy, code=self.code, num_CX_per_layer_list=num_CX_per_layer_list, num_layers=num_layers, 
                                                 num_logicals=self.num_logicals, logical_basis=self.logical_basis, 
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
@@ -473,11 +472,11 @@ class Simulator:
                 observable_flips_all_shots.extend(observable_flip[0])
                 
                 if self.printing:
-                    print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
+                    # print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
                     print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
-                    final_loss_circuit = MLE_Loss_Decoder_class.observables_to_detectors(experimental_circuit)
-                    final_dem = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
-                    print(f"dem for the lossy circuit = {final_dem}")
+                    # final_loss_circuit = MLE_Loss_Decoder_class.observables_to_detectors(experimental_circuit)
+                    # final_dem = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
+                    # print(f"dem for the lossy circuit = {final_dem}")
                     
                     
             # measurement_events_all_shots = np.array(measurement_events_all_shots).astype(int).reshape((num_shots, 1, -1))

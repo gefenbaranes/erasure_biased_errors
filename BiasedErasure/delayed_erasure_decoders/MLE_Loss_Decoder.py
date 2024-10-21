@@ -1394,7 +1394,7 @@ class MLE_Loss_Decoder:
         Pauli_DEM = circuit_for_Pauli_dem.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True) # GB: new Oct24, allow_gauge_detectors = True to allow DEM generation when meas basis is wrong. 
         
         # if self.printing:
-        # print(f"Pauli_DEM = {Pauli_DEM}")
+        print(f"Pauli_DEM = {Pauli_DEM}")
         # Convert the DEM into a matrix:
         hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, observables_converted_to_detectors=True)
         hyperedges_matrix_Pauli_DEM = hyperedges_matrix_Pauli_DEM.tocsr()
