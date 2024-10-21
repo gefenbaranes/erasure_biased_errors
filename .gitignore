@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 BiasedErasure/main_code/__pycache__/
+BiasedErasure/delayed_erasure_decoders/__pycache__/
 
 # C extensions
 *.so
