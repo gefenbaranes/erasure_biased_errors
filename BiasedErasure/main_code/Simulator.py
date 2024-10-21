@@ -393,6 +393,42 @@ class Simulator:
         return detection_events, flips
     
     
+    def generate_loss_circuit(self, dx: int, dy: int, noise_params={}):
+        
+        # Step 1 - initialize loss decoder class:
+
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+
+        # print(LogicalCircuit)
+        ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
+        data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
+        MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
+                                                dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
+                                                ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq,
+                                                output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
+                                                save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type,
+                                                use_independent_decoder=False, first_comb_weight=self.first_comb_weight,
+                                                use_independent_and_first_comb_decoder=False)
+        
+        if self.loss_detection_method_str == 'SWAP':
+            loss_detection_class = self.heralded_circuit(circuit=LogicalCircuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
+                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
+                                                                    phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+                                                                    SSR=self.SSR, cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq)
+            SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(LogicalCircuit)
+            if self.printing:
+                print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
+            loss_detection_class.SWAP_circuit = SWAP_circuit
+            MLE_Loss_Decoder_class.circuit = SWAP_circuit
+        
+        elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
+            MLE_Loss_Decoder_class.circuit = LogicalCircuit
+            
+            
+        return LogicalCircuit
+        
+    
     def sampling_with_loss(self, num_shots: int, dx: int, dy: int, noise_params={}, circuit = None):
         """This function samples measurements and detection events including loss.
         """
