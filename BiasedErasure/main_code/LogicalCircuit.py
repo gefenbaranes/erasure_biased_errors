@@ -35,7 +35,7 @@ class LogicalCircuit(stim.Circuit):
                 initialize_circuit: bool = True,
                 atom_array_sim: bool = False,
                 replace_H_Ry: bool = False,
-                circuit_index: int = 0,
+                circuit_index: str = '0',
                 circuit_type: str = 'None'):
         """
         Generates a LogicalCircuit, which is a subclass of stim.Circuit() but with additional attributes that are
