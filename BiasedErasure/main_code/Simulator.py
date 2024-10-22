@@ -76,7 +76,7 @@ class Simulator:
 
 
         ### Circuit type to use
-        self.circuit_index = int(Meta_params['circuit_index']) if 'circuit_index' in Meta_params.keys() else 0
+        self.circuit_index = str(Meta_params['circuit_index']) if 'circuit_index' in Meta_params.keys() else '0'
 
 
     def get_job_id(self):
