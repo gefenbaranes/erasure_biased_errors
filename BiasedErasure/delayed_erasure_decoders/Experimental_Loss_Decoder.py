@@ -7,7 +7,7 @@ from BiasedErasure.main_code.noise_channels import atom_array
 
 def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, 
                                 detection_events_signs: np.ndarray, use_loss_decoding=True,
-                                use_independent_decoder=True, use_independent_and_first_comb_decoder=False, simulate_data=False, first_comb_weight=0.0, noise_params={}, logical_gaps=False, num_shots=0):
+                                use_independent_decoder=True, use_independent_and_first_comb_decoder=False, first_comb_weight=0.0, noise_params={}, logical_gaps=False, num_shots=0):
         
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
@@ -21,11 +21,10 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         ordering: bad or fowler (good)
         decoder: MLE or MWPM
         use_loss_decoding: True or False. Do we want to use the delayed-erasure decoder?
-        if simulate_data=True: dont use experimental data, simulate it from the stim circuit.
         """
 
-        if not simulate_data:
-                num_shots = measurement_events.shape[0]
+
+        num_shots = measurement_events.shape[0]
         
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
@@ -39,29 +38,27 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
                                 cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True)
 
         if not logical_gaps:
-                # Step 1 - decode:
                 predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
                                                         measurement_events = measurement_events, detection_events_signs=detection_events_signs,
                                                         use_loss_decoding=use_loss_decoding,
                                                         use_independent_decoder=use_independent_decoder,
                                                         use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                        simulate_data=simulate_data, noise_params=noise_params)
+                                                        noise_params=noise_params)
 
 
                 return predictions, observable_flips, dems_list
         else:
-        # Step 1 - decode:
-                predictions, log_probabilities, observable_flips, dems_list = simulator.get_logical_gap_experiment(num_shots=num_shots,
-                                                                                                dx=dx, dy=dy,
-                                                                                                measurement_events=measurement_events,
-                                                                                                detection_events_signs=detection_events_signs,
-                                                                                                use_loss_decoding=use_loss_decoding,
-                                                                                                use_independent_decoder=use_independent_decoder,
-                                                                                                use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                                                                simulate_data=simulate_data,
-                                                                                                noise_params=noise_params)
-
+                predictions, log_probabilities, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                        use_loss_decoding=use_loss_decoding,
+                                                        use_independent_decoder=use_independent_decoder,
+                                                        use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                                        noise_params=noise_params, logical_gap = True)
+                
                 return predictions, log_probabilities, observable_flips, dems_list
+
+
+
 
 def get_simulated_measurement_events(Meta_params, dx: int, dy: int, num_shots: int, noise_params: dict = {}, printing=False):
 

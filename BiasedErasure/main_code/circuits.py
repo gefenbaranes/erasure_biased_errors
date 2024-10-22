@@ -206,7 +206,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                         
         else: # no QEC in this circuit. 
             if num_CX_in_layer % 2 == 0: # no entanglement in this layer
-                # 4 body operators in each logical (sets of data qubits). Only on deterministic sets.
+                # 4 body operators in each logical separately (sets of data qubits). Only on deterministic sets.
                 for index in [0,1]:
                     measure_qubits = lc.logical_qubits[index].measure_qubits_x if meas_bases[index] == 'X' else lc.logical_qubits[index].measure_qubits_z
                     for meas_q in measure_qubits:
