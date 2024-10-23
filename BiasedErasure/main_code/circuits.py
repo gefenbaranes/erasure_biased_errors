@@ -135,110 +135,138 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     return lc
 
 
-def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num_logicals=2, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 100, atom_array_sim=True, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0):
+def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num_logicals=2, logical_basis='X',
+                          biased_pres_gates=False, ordering='fowler', loss_detection_method='FREE',
+                          loss_detection_frequency=100, atom_array_sim=True, replace_H_Ry=False, xzzx=False,
+                          noise_params={}, printing=False, circuit_index='0'):
     """ This circuit simulated 2 logical qubits, a logical CX experiment with QEC cycles."""
-    
+
     assert num_logicals == 2
     assert atom_array_sim
     assert xzzx
-    assert len(num_CX_per_layer_list) ==  num_layers
+    assert len(num_CX_per_layer_list) == num_layers
 
-    
     def construct_detectors_data_qubits_measurement(meas_bases, QEC_cycles, num_CX_in_layer):
         # construct the 5 / 6 body operators between the logicals and with previous rounds (using data qubits).
         # we can use only half of the measure qubits, according to the meas basis of the data qubits.
         # if QEC_cycles > 0: we did QEC before, so we need to compare to previous ancilla qubits measurements.
         # if QEC_cycles == 0: no QEC at all. We only need to check Bell pairs between each set of 4 data qubits in each logical (8 body operator).
         # meas_bases = list of the 2 measurement bases for each logical.
-        if QEC_cycles > 0: # we did some QEC cycles before this transversal measurement
-            
-            if num_CX_in_layer % 2 == 0: # no entanglement in this layer
-            # build 5 body operators of data (t) measure qubit (t-1) - each logical separately
-                for index in [0,1]:
+        if QEC_cycles > 0:  # we did some QEC cycles before this transversal measurement
+
+            if num_CX_in_layer % 2 == 0:  # no entanglement in this layer
+                # build 5 body operators of data (t) measure qubit (t-1) - each logical separately
+                for index in [0, 1]:
                     measure_qubits_set = measure_qubits_x if meas_bases[index] == 'X' else measure_qubits_z
                     for meas_q in measure_qubits_set:
                         # meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
                         meas_q_type = meas_bases[index]
-                        meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
+                        meas_q_logical = 0 if meas_q in np.concatenate(
+                            (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
                         check_ix = measure_qubits_list.index(meas_q)
-                        
+
                         # get the data qubits neighbors:
-                        neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q, which=direction) for direction in [0,1,2,3]]
-                        all_relevant_neighbor_qubits = sorted([neighbor for neighbor in neighbors_data_q if neighbor is not None])
+                        neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q,
+                                                                                                  which=direction) for
+                                            direction in [0, 1, 2, 3]]
+                        all_relevant_neighbor_qubits = sorted(
+                            [neighbor for neighbor in neighbors_data_q if neighbor is not None])
                         data_qubits_list = data_qubits.tolist()
                         check_ixs = [data_qubits_list.index(i) for i in all_relevant_neighbor_qubits]
-                        check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+                        check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in
+                                              check_ixs]
                         # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
 
-                        check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
-                        
+                        check_targets = check_targets_data + [
+                            stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
+
                         # print(f"meas_q: {meas_q}, check_targets: {check_targets}")
                         lc.append('DETECTOR', check_targets)
                         # print("detector added")
-                        
-            else: # there is entanglement, build 5/6 body operators of data (t) measure qubit (t-1)
-                for index in [0,1]:
+
+            else:  # there is entanglement, build 5/6 body operators of data (t) measure qubit (t-1)
+                for index in [0, 1]:
                     measure_qubits_set = measure_qubits_x if meas_bases[index] == 'X' else measure_qubits_z
                     for meas_q in measure_qubits_set:
                         # meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
                         meas_q_type = meas_bases[index]
-                        meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
+                        meas_q_logical = 0 if meas_q in np.concatenate(
+                            (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
                         check_ix = measure_qubits_list.index(meas_q)
-                        
+
                         # get the data qubits neighbors:
-                        neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q, which=direction) for direction in [0,1,2,3]]
-                        all_relevant_neighbor_qubits = sorted([neighbor for neighbor in neighbors_data_q if neighbor is not None])
+                        neighbors_data_q = [lc.logical_qubits[meas_q_logical].neighbor_from_index(physical_index=meas_q,
+                                                                                                  which=direction) for
+                                            direction in [0, 1, 2, 3]]
+                        all_relevant_neighbor_qubits = sorted(
+                            [neighbor for neighbor in neighbors_data_q if neighbor is not None])
                         data_qubits_list = data_qubits.tolist()
                         check_ixs = [data_qubits_list.index(i) for i in all_relevant_neighbor_qubits]
-                        check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+                        check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in
+                                              check_ixs]
                         # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
 
-                        if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 6 body operator:
-                            check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int(num_of_measure_qubits/2) - check_ix))]
-                        elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 6 body operator:
-                            check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)), stim.target_rec(-(num_of_data_qubits + int((3/2)*num_of_measure_qubits) - check_ix))]
-                        else: # X type for L1 or Z type for L0, 5 body operator:
-                            check_targets = check_targets_data + [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
-                        
+                        if (
+                                meas_q_type == 'X' and meas_q_logical == 0):  # X type for L0 or Z type for L1, 6 body operator:
+                            check_targets = check_targets_data + [
+                                stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)),
+                                stim.target_rec(-(num_of_data_qubits + int(num_of_measure_qubits / 2) - check_ix))]
+                        elif (
+                                meas_q_type == 'Z' and meas_q_logical == 1):  # X type for L0 or Z type for L1, 6 body operator:
+                            check_targets = check_targets_data + [
+                                stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix)),
+                                stim.target_rec(
+                                    -(num_of_data_qubits + int((3 / 2) * num_of_measure_qubits) - check_ix))]
+                        else:  # X type for L1 or Z type for L0, 5 body operator:
+                            check_targets = check_targets_data + [
+                                stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
+
                         # print(f"meas_q: {meas_q}, check_targets: {check_targets}")
                         lc.append('DETECTOR', check_targets)
                         # print("detector added")
-                        
-        else: # no QEC in this circuit. 
-            if num_CX_in_layer % 2 == 0: # no entanglement in this layer
+
+        else:  # no QEC in this circuit.
+            if num_CX_in_layer % 2 == 0:  # no entanglement in this layer
                 # 4 body operators in each logical separately (sets of data qubits). Only on deterministic sets.
-                for index in [0,1]:
-                    measure_qubits = lc.logical_qubits[index].measure_qubits_x if meas_bases[index] == 'X' else lc.logical_qubits[index].measure_qubits_z
+                for index in [0, 1]:
+                    measure_qubits = lc.logical_qubits[index].measure_qubits_x if meas_bases[index] == 'X' else \
+                    lc.logical_qubits[index].measure_qubits_z
                     for meas_q in measure_qubits:
-                        neighbors = [lc.logical_qubits[index].neighbor_from_index(physical_index=meas_q, which=direction) for direction in [0,1,2,3]]
+                        neighbors = [
+                            lc.logical_qubits[index].neighbor_from_index(physical_index=meas_q, which=direction) for
+                            direction in [0, 1, 2, 3]]
                         all_relevant_data_qubits = sorted([neighbor for neighbor in neighbors if neighbor is not None])
                         data_qubits_list = data_qubits.tolist()
                         check_ixs = [data_qubits_list.index(i) for i in all_relevant_data_qubits]
                         check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
                         lc.append('DETECTOR', check_targets)
-                    
-                    
+
                 # for (data_q0, data_q1) in zip(data_qubits_L0, data_qubits_L1):
                 #     data_qubits_pair = [data_q0, data_q1]
                 #     check_ixs = [data_qubits_list.index(i) for i in data_qubits_pair]
                 #     check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
                 #     lc.append('DETECTOR', check_targets)
-                
+
             else:
-                
+
                 # build 8 body operators between sets of data qubits in each logical (only the relevant set according to measurement basis).
-                measure_qubits_0 = lc.logical_qubits[0].measure_qubits_x if meas_bases[0] == 'X' else lc.logical_qubits[0].measure_qubits_z
-                measure_qubits_1 = lc.logical_qubits[1].measure_qubits_x if meas_bases[1] == 'X' else lc.logical_qubits[1].measure_qubits_z
+                measure_qubits_0 = lc.logical_qubits[0].measure_qubits_x if meas_bases[0] == 'X' else lc.logical_qubits[
+                    0].measure_qubits_z
+                measure_qubits_1 = lc.logical_qubits[1].measure_qubits_x if meas_bases[1] == 'X' else lc.logical_qubits[
+                    1].measure_qubits_z
                 for (meas_q0, meas_q1) in zip(measure_qubits_0, measure_qubits_1):
-                    neighbors_L0 = [lc.logical_qubits[0].neighbor_from_index(physical_index=meas_q0, which=direction) for direction in [0,1,2,3]]
-                    neighbors_L1 = [lc.logical_qubits[1].neighbor_from_index(physical_index=meas_q1, which=direction) for direction in [0,1,2,3]]
-                    all_relevant_data_qubits = sorted([neighbor for neighbor in neighbors_L0 + neighbors_L1 if neighbor is not None])
+                    neighbors_L0 = [lc.logical_qubits[0].neighbor_from_index(physical_index=meas_q0, which=direction)
+                                    for direction in [0, 1, 2, 3]]
+                    neighbors_L1 = [lc.logical_qubits[1].neighbor_from_index(physical_index=meas_q1, which=direction)
+                                    for direction in [0, 1, 2, 3]]
+                    all_relevant_data_qubits = sorted(
+                        [neighbor for neighbor in neighbors_L0 + neighbors_L1 if neighbor is not None])
                     data_qubits_list = data_qubits.tolist()
 
                     check_ixs = [data_qubits_list.index(i) for i in all_relevant_data_qubits]
                     check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
                     lc.append('DETECTOR', check_targets)
-                
+
                 # OLD: build 2 body operators between pairs of data qubits in each logical. -- deleted, we want the 8 body instead
                 # for (data_q0, data_q1) in zip(data_qubits_L0, data_qubits_L1):
                 #     data_qubits_pair = [data_q0, data_q1]
@@ -246,7 +274,6 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                 #     check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
                 #     lc.append('DETECTOR', check_targets)
 
-    
     # QEC_cycles = num_layers - 1
     # ### Allow different orderings for different rounds
     # if (type(ordering) is list) or (type(ordering) is np.ndarray):
@@ -263,21 +290,18 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
     #         print(f"Using orderings: {ordering}")
     # ####
 
-
     if code == 'Rotated_Surface':
         logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
     elif code == 'Surface':
         logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
-    
+
     lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                         loss_noise_scale_factor=1, spam_noise_scale_factor=1,
                         gate_noise_scale_factor=1, idle_noise_scale_factor=1,
-                        atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, circuit_type = 'CX', **noise_params)
-    
-        
-    
-    
-    ###  initialization step:    
+                        atom_array_sim=atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index=circuit_index,
+                        circuit_type='CX', **noise_params)
+
+    ###  initialization step:
     # initialize qubit 0 in |+> and qubit 1 in |0>:
     if num_layers > 1: # we have QEC
         lc.append('MOVE_TO_STORAGE', np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
@@ -290,13 +314,16 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
     lc.append(qec.surface_code.prepare_plus_no_gates, [0], xzzx=xzzx)
     lc.append(qec.surface_code.prepare_zero_no_gates, [1], xzzx=xzzx)
     # lc.append_from_stim_program_text("""TICK""") # ending init
-    
-    
+
     ### Variables we are going to use:
-    measure_qubits_x = np.sort(np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[1].measure_qubits_x)))
-    measure_qubits_z = np.sort(np.concatenate((lc.logical_qubits[0].measure_qubits_z, lc.logical_qubits[1].measure_qubits_z)))
-    measure_qubits_L0 = np.sort(np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)))
-    measure_qubits_L1 = np.sort(np.concatenate((lc.logical_qubits[1].measure_qubits_x, lc.logical_qubits[1].measure_qubits_z)))
+    measure_qubits_x = np.sort(
+        np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[1].measure_qubits_x)))
+    measure_qubits_z = np.sort(
+        np.concatenate((lc.logical_qubits[0].measure_qubits_z, lc.logical_qubits[1].measure_qubits_z)))
+    measure_qubits_L0 = np.sort(
+        np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)))
+    measure_qubits_L1 = np.sort(
+        np.concatenate((lc.logical_qubits[1].measure_qubits_x, lc.logical_qubits[1].measure_qubits_z)))
     measure_qubits = np.sort(np.concatenate((measure_qubits_z, measure_qubits_x)))
     measure_qubits_list = measure_qubits.tolist()
     num_of_measure_qubits = len(measure_qubits)
@@ -305,217 +332,251 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
     data_qubits = np.sort(np.concatenate((data_qubits_L0, data_qubits_L1)))
     data_qubits_list = data_qubits.tolist()
     num_of_data_qubits = len(data_qubits)
-            
+
     ### Layers of CX and QEC:
     QEC_cycles = 0
     for round_ix in range(num_layers):
         # in each layer, we have num_CX_per_layer transversal CX gates, then 1 round of QEC. ordering = N.
         # lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        
+
         num_CX_in_layer = num_CX_per_layer_list[round_ix]
         ### Transversal CX gates:
         for cx_ix in range(num_CX_in_layer):
             if cx_ix == 0:
                 if xzzx:
-                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3, sublattice = 'odd') # apply this H only on the first layer
-                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3, sublattice = 'even') # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3,
+                              sublattice='odd')  # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3,
+                              sublattice='even')  # apply this H only on the first layer
                 else:
-                    lc.append(qec.surface_code.global_h, [1], move_duration=1e-3) # apply this H only on the first layer
-            #print('num_CX_in_layer', num_CX_in_layer, 10000 / num_CX_in_layer)
-            lc.append(qec.surface_code.global_cz, [0,1], move_duration=10000 / num_CX_in_layer)
-            #print('yo', lc[-10:])
-            #print(round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
+                    lc.append(qec.surface_code.global_h, [1],
+                              move_duration=1e-3)  # apply this H only on the first layer
+            # print('num_CX_in_layer', num_CX_in_layer, 10000 / num_CX_in_layer)
+            lc.append(qec.surface_code.global_cz, [0, 1], move_duration=10000 / num_CX_in_layer)
+            # print('yo', lc[-10:])
+            # print(round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
 
-            if cx_ix == num_CX_in_layer // 2 : # new GB - add Y pulse on all qubits:
-                lc.append('Y', lc.qubit_indices) 
-                
-            if (cx_ix == num_CX_in_layer - 1) and (round_ix < num_layers - 1): # new GB - for last round_ix, we need to cancel out these pulses with the measurement
+            if cx_ix == num_CX_in_layer // 2:  # new GB - add Y pulse on all qubits:
+                lc.append('Y', lc.qubit_indices)
+
+            if (cx_ix == num_CX_in_layer - 1) and (
+                    round_ix < num_layers - 1):  # new GB - for last round_ix, we need to cancel out these pulses with the measurement
                 if xzzx:
-                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3, sublattice = 'odd') # apply this H only on the first layer
-                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3, sublattice = 'even') # apply this H only on the first layer
-                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3, sublattice = 'odd') # apply this H only on the first layer
-                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3, sublattice = 'even') # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3,
+                              sublattice='odd')  # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3,
+                              sublattice='even')  # apply this H only on the first layer
                 else:
-                    lc.append(qec.surface_code.global_h, [1], move_duration=1e-3) # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h, [1],
+                              move_duration=1e-3)  # apply this H only on the first layer
 
-                    lc.append(qec.surface_code.global_h, [1], move_duration=1e-3) # apply this H only on the first layer
-        
         if round_ix < num_layers - 1:
             lc.append('Y', lc.qubit_indices)  # new GB - add Y pulse on all qubits:
-                
-                
-                
+
         ### Round of QEC:
-        if num_layers > 1: # we do want some QEC..
+        if num_layers > 1:  # we do want some QEC..
             if round_ix < num_layers - 1:
                 # measure ancilla qubits (without detectors)
-                put_detectors = False # dont put any detectors, we will define them here.
+                put_detectors = False  # dont put any detectors, we will define them here.
                 init_round = None
-                
-                if xzzx: # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
-                    lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [0,1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=False, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False, previous_meas_offset=0) # # new version of stabilizer checks to fix weight=2 checks
+
+                if xzzx:  # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
+                    lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [0, 1],
+                              order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round=False,
+                              SWAP_round_type='None', compare_with_previous=False, put_detectors=put_detectors,
+                              logical_basis='None', init_round=init_round, automatic_detectors=False,
+                              previous_meas_offset=0)  # # new version of stabilizer checks to fix weight=2 checks
                     # lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False, previous_meas_offset=previous_meas_offset) # # new version of stabilizer checks to fix weight=2 checks
                 else:
-                    lc.append(qec.surface_code.measure_stabilizers, [0, 1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=False, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False) # append QEC rounds
+                    lc.append(qec.surface_code.measure_stabilizers, [0, 1], order=ordering[round_ix],
+                              with_cnot=biased_pres_gates, SWAP_round=False, SWAP_round_type='None',
+                              compare_with_previous=False, put_detectors=put_detectors, logical_basis='None',
+                              init_round=init_round, automatic_detectors=False)  # append QEC rounds
                     # lc.append(qec.surface_code.measure_stabilizers, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='Z', init_round=init_round, automatic_detectors=False) # append QEC rounds
-                #print('during ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
+                # print('during ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
 
-            ## constructing detectors for each layer differently:
-            if round_ix == 0: # first layer, we put 2 body operators for the detectors.
-                if num_CX_in_layer % 2 == 0 : # new GB - no entanglement in this layer
-                    # construct the 1 body operators in each logical:
-                    init_bases = ['X','Z']
-                    for index in [0,1]:
-                        measure_qubits_set = lc.logical_qubits[index].measure_qubits_x if init_bases[index] == 'X' else lc.logical_qubits[index].measure_qubits_z
-                        for meas_q in measure_qubits_set:
-                            check_ix = measure_qubits_list.index(meas_q)                            
-                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix))]
+            if ('ignoredetectors' in lc.circuit_index):  ### ADDED BY SG ON 22/10/2024
+                pass
+
+            else:
+                ## constructing detectors for each layer differently:
+                if round_ix == 0:  # first layer, we put 2 body operators for the detectors.
+                    if num_CX_in_layer % 2 == 0:  # new GB - no entanglement in this layer
+                        # construct the 1 body operators in each logical:
+                        init_bases = ['X', 'Z']
+                        for index in [0, 1]:
+                            measure_qubits_set = lc.logical_qubits[index].measure_qubits_x if init_bases[
+                                                                                                  index] == 'X' else \
+                            lc.logical_qubits[index].measure_qubits_z
+                            for meas_q in measure_qubits_set:
+                                check_ix = measure_qubits_list.index(meas_q)
+                                check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix))]
+                                lc.append('DETECTOR', check_targets)
+                    else:
+                        # construct the 2 body operators between the logicals:
+                        for meas_q in np.concatenate(
+                                (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)):
+                            # for meas_q in measure_qubits_L0:
+                            check_ix = measure_qubits_list.index(meas_q)
+
+                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)),
+                                             stim.target_rec(-(int(num_of_measure_qubits / 2) - check_ix))]
                             lc.append('DETECTOR', check_targets)
-                else:
-                    # construct the 2 body operators between the logicals:
-                    for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)):
-                    # for meas_q in measure_qubits_L0:
-                        check_ix = measure_qubits_list.index(meas_q)
-                        
-                        check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(int(num_of_measure_qubits/2) - check_ix))]
-                        lc.append('DETECTOR', check_targets)
-                
-            
-            elif (round_ix != num_layers - 1):
-                
-                
-                if num_CX_in_layer % 2 == 0 : # new GB - no entanglement in this layer
-                    # construct the 2 body operators in each logical (t,t-1):
-                    for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z, lc.logical_qubits[1].measure_qubits_x, lc.logical_qubits[1].measure_qubits_z)):
-                        meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
-                        meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
-                        check_ix = measure_qubits_list.index(meas_q)
-                        
-                        # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
-                        check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix))]
-                        lc.append('DETECTOR', check_targets)
-                else:
-                    # construct the 2 / 3 body operators between the logicals and with previous rounds (using measure qubits):
-                    for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z, lc.logical_qubits[1].measure_qubits_x, lc.logical_qubits[1].measure_qubits_z)):
-                    # for meas_q in measure_qubits:
-                        meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
-                        meas_q_logical = 0 if meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
-                        check_ix = measure_qubits_list.index(meas_q)
-                        
-                        # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
-                        
-                        if (meas_q_type == 'X' and meas_q_logical == 0): # X type for L0 or Z type for L1, 3 body operator:
-                            # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int(num_of_measure_qubits/2) - check_ix))]
-                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
-                        elif (meas_q_type == 'Z' and meas_q_logical == 1): # X type for L0 or Z type for L1, 3 body operator:
-                            # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
-                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((5/2)*num_of_measure_qubits) - check_ix))]
-                        # X type for L1 or Z type for L0, 2 body operator:
-                        else:
-                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix))]
-                        
-                        lc.append('DETECTOR', check_targets)
 
+
+                elif (round_ix != num_layers - 1):
+
+                    if num_CX_in_layer % 2 == 0:  # new GB - no entanglement in this layer
+                        # construct the 2 body operators in each logical (t,t-1):
+                        for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x,
+                                                      lc.logical_qubits[0].measure_qubits_z,
+                                                      lc.logical_qubits[1].measure_qubits_x,
+                                                      lc.logical_qubits[1].measure_qubits_z)):
+                            meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
+                            meas_q_logical = 0 if meas_q in np.concatenate(
+                                (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
+                            check_ix = measure_qubits_list.index(meas_q)
+
+                            # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
+                            check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)),
+                                             stim.target_rec(-(2 * num_of_measure_qubits - check_ix))]
+                            lc.append('DETECTOR', check_targets)
+                    else:
+                        # construct the 2 / 3 body operators between the logicals and with previous rounds (using measure qubits):
+                        for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x,
+                                                      lc.logical_qubits[0].measure_qubits_z,
+                                                      lc.logical_qubits[1].measure_qubits_x,
+                                                      lc.logical_qubits[1].measure_qubits_z)):
+                            # for meas_q in measure_qubits:
+                            meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
+                            meas_q_logical = 0 if meas_q in np.concatenate(
+                                (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
+                            check_ix = measure_qubits_list.index(meas_q)
+
+                            # print(f"meas_q: {meas_q}, type: {meas_q_type}, meas_q_logical: {meas_q_logical}")
+
+                            if (
+                                    meas_q_type == 'X' and meas_q_logical == 0):  # X type for L0 or Z type for L1, 3 body operator:
+                                # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int(num_of_measure_qubits/2) - check_ix))]
+                                check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)),
+                                                 stim.target_rec(-(2 * num_of_measure_qubits - check_ix)),
+                                                 stim.target_rec(-(int((3 / 2) * num_of_measure_qubits) - check_ix))]
+                            elif (
+                                    meas_q_type == 'Z' and meas_q_logical == 1):  # X type for L0 or Z type for L1, 3 body operator:
+                                # check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix)), stim.target_rec(-(int((3/2)*num_of_measure_qubits) - check_ix))]
+                                check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)),
+                                                 stim.target_rec(-(2 * num_of_measure_qubits - check_ix)),
+                                                 stim.target_rec(-(int((5 / 2) * num_of_measure_qubits) - check_ix))]
+                            # X type for L1 or Z type for L0, 2 body operator:
+                            else:
+                                check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)),
+                                                 stim.target_rec(-(2 * num_of_measure_qubits - check_ix))]
+
+                            lc.append('DETECTOR', check_targets)
+
+            # lc.append_from_stim_program_text("""TICK""") # ending a QEC round
             lc.append('MOVE_TO_STORAGE',
                       np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]),
                       200)
-            #print('after ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
+            # print('after ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
 
-            # lc.append_from_stim_program_text("""TICK""") # ending a QEC round
-            lc.append('MOVE_TO_STORAGE', np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 200)
-            
             QEC_cycles += 1
 
-
-    ### logical measurement step:    
+    ### logical measurement step:
     # lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-    
-    no_ancillas = True if QEC_cycles==0 else False # no QEC rounds at all
-    
+
+    no_ancillas = True if QEC_cycles == 0 else False  # no QEC rounds at all
+
     if logical_basis == 'XZ':
         # previous_meas_offset = len(lc.logical_qubits[1].measure_qubits_x) + len(lc.logical_qubits[1].measure_qubits_z) # offset for detectors comparison.
         # lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #XI measurement
         # previous_meas_offset = len(lc.logical_qubits[0].data_qubits) # offset for detectors comparison.
         # lc.append(qec.surface_code.measure_z, [1], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, previous_meas_offset=previous_meas_offset) #IZ measurement
         raise NotImplementedError
-        lc.append('SQRT_Y', data_qubits) ## TODO: fix it if we need it
+        lc.append('SQRT_Y', data_qubits)  ## TODO: fix it if we need it
         lc.append('M', data_qubits)
-        
-        construct_detectors_data_qubits_measurement(meas_bases = ['X','Z'], QEC_cycles=QEC_cycles, num_CX_in_layer=num_CX_in_layer)
-        
-        
+
+        if ('ignoredetectors' in lc.circuit_index):  ### ADDED BY SG ON 22/10/2024
+            construct_detectors_data_qubits_measurement(meas_bases=['X', 'Z'], QEC_cycles=0,
+                                                        num_CX_in_layer=num_CX_in_layer)
+        else:
+            construct_detectors_data_qubits_measurement(meas_bases=['X', 'Z'], QEC_cycles=QEC_cycles,
+                                                        num_CX_in_layer=num_CX_in_layer)
+
         for index in range(num_logicals):
             logical_rec = []
             physical_data_qubit_layout = lc.logical_qubits[index].data_qubits.reshape((lc.logical_qubits[index].dy,
-                                                                                lc.logical_qubits[index].dx))
+                                                                                       lc.logical_qubits[index].dx))
             if index == 0:
                 logical_x = physical_data_qubit_layout[lc.logical_qubits[index].dy // 2, :]
-                logical_x_rec = -((num_logicals-index)*len(lc.logical_qubits[index].data_qubits) - np.array(
-                            [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_x]))
+                logical_x_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
+                    [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_x]))
                 logical_rec.append([stim.target_rec(i) for i in logical_x_rec])
                 lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_rec), lc.num_observables)
 
             elif index == 1:
                 logical_z = physical_data_qubit_layout[:, lc.logical_qubits[index].dx // 2]
-                logical_z_rec = -((num_logicals-index)*len(lc.logical_qubits[index].data_qubits) - np.array(
-                            [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_z]))
+                logical_z_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
+                    [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_z]))
                 logical_rec.append([stim.target_rec(i) for i in logical_z_rec])
                 lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_rec), lc.num_observables)
 
-
-
-    
-    
-
     if logical_basis == 'XX':
         # lc.append(qec.surface_code.measure_x, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
-        
+
         # new GB - cancel out the H here with the final CX H gates:
-        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0) 
+        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0)
         lc.append('SQRT_Y', data_qubits_L0)
         lc.append('M', data_qubits)
-        
-        
-        construct_detectors_data_qubits_measurement(meas_bases = ['X','X'], QEC_cycles=QEC_cycles, num_CX_in_layer=num_CX_in_layer)
-        
+
+        if ('ignoredetectors' in lc.circuit_index):  ### ADDED BY SG ON 22/10/2024
+            construct_detectors_data_qubits_measurement(meas_bases=['X', 'X'], QEC_cycles=0,
+                                                        num_CX_in_layer=num_CX_in_layer)
+        else:
+            construct_detectors_data_qubits_measurement(meas_bases=['X', 'X'], QEC_cycles=QEC_cycles,
+                                                        num_CX_in_layer=num_CX_in_layer)
+
+        # construct_detectors_data_qubits_measurement(meas_bases = ['X','X'], QEC_cycles=QEC_cycles, num_CX_in_layer=num_CX_in_layer)
+
         logical_xx_rec = []
-        for index in range(num_logicals): 
+        for index in range(num_logicals):
             physical_data_qubit_layout = lc.logical_qubits[index].data_qubits.reshape((lc.logical_qubits[index].dy,
-                                                                                lc.logical_qubits[index].dx))
+                                                                                       lc.logical_qubits[index].dx))
             logical_x = physical_data_qubit_layout[lc.logical_qubits[index].dy // 2, :]
-            logical_x_rec = -((num_logicals-index)*len(lc.logical_qubits[index].data_qubits) - np.array(
-                        [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_x]))
+            logical_x_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
+                [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_x]))
             logical_xx_rec.append([stim.target_rec(i) for i in logical_x_rec])
 
         lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_xx_rec), lc.num_observables)
-    
+
     elif logical_basis == 'ZZ':
         # lc.append(qec.surface_code.measure_z, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
-        
+
         # new GB - cancel out the H here with the final CX H gates:
-        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0) 
+        # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0)
         lc.append('SQRT_Y', data_qubits_L1)
         lc.append('M', data_qubits)
-        
-        
-        construct_detectors_data_qubits_measurement(meas_bases = ['Z','Z'], QEC_cycles=QEC_cycles, num_CX_in_layer=num_CX_in_layer)
-        
+
+        if ('ignoredetectors' in lc.circuit_index):  ### ADDED BY SG ON 22/10/2024
+            construct_detectors_data_qubits_measurement(meas_bases=['Z', 'Z'], QEC_cycles=0,
+                                                        num_CX_in_layer=num_CX_in_layer)
+        else:
+            construct_detectors_data_qubits_measurement(meas_bases=['Z', 'Z'], QEC_cycles=QEC_cycles,
+                                                        num_CX_in_layer=num_CX_in_layer)
+
+        # construct_detectors_data_qubits_measurement(meas_bases = ['Z','Z'], QEC_cycles=QEC_cycles, num_CX_in_layer=num_CX_in_layer)
+
         logical_zz_rec = []
-        for index in range(num_logicals): 
+        for index in range(num_logicals):
             physical_data_qubit_layout = lc.logical_qubits[index].data_qubits.reshape((lc.logical_qubits[index].dy,
-                                                                                lc.logical_qubits[index].dx))
+                                                                                       lc.logical_qubits[index].dx))
             logical_z = physical_data_qubit_layout[:, lc.logical_qubits[index].dx // 2]
-            logical_z_rec = -((num_logicals-index)*len(lc.logical_qubits[index].data_qubits) - np.array(
-                        [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_z]))
+            logical_z_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
+                [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_z]))
             logical_zz_rec.append([stim.target_rec(i) for i in logical_z_rec])
 
         lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_zz_rec), lc.num_observables)
-
-
     return lc
-
-
-
 
 
 def memory_experiment_surface(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
