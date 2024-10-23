@@ -282,9 +282,13 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
     if num_layers > 1: # we have QEC
         lc.append('MOVE_TO_STORAGE', np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
     lc.append('MOVE_TO_ENTANGLING', np.concatenate([lc.logical_qubits[i].data_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
+    if num_layers > 1:  # we have QEC
+        lc.append('MOVE_TO_STORAGE',
+                  np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
+    lc.append('MOVE_TO_ENTANGLING',
+              np.concatenate([lc.logical_qubits[i].data_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
     lc.append(qec.surface_code.prepare_plus_no_gates, [0], xzzx=xzzx)
     lc.append(qec.surface_code.prepare_zero_no_gates, [1], xzzx=xzzx)
-        
     # lc.append_from_stim_program_text("""TICK""") # ending init
     
     
@@ -329,7 +333,11 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                 if xzzx:
                     lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3, sublattice = 'odd') # apply this H only on the first layer
                     lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3, sublattice = 'even') # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [0], move_duration=1e-3, sublattice = 'odd') # apply this H only on the first layer
+                    lc.append(qec.surface_code.global_h_xzzx, [1], move_duration=1e-3, sublattice = 'even') # apply this H only on the first layer
                 else:
+                    lc.append(qec.surface_code.global_h, [1], move_duration=1e-3) # apply this H only on the first layer
+
                     lc.append(qec.surface_code.global_h, [1], move_duration=1e-3) # apply this H only on the first layer
         
         if round_ix < num_layers - 1:
@@ -348,9 +356,10 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                     lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [0,1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=False, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False, previous_meas_offset=0) # # new version of stabilizer checks to fix weight=2 checks
                     # lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False, previous_meas_offset=previous_meas_offset) # # new version of stabilizer checks to fix weight=2 checks
                 else:
-                    lc.append(qec.surface_code.measure_stabilizers, [0,1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=False, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False) # append QEC rounds
+                    lc.append(qec.surface_code.measure_stabilizers, [0, 1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=False, put_detectors = put_detectors, logical_basis='None', init_round=init_round, automatic_detectors=False) # append QEC rounds
                     # lc.append(qec.surface_code.measure_stabilizers, [1], order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = False, SWAP_round_type='None', compare_with_previous=True, put_detectors = put_detectors, logical_basis='Z', init_round=init_round, automatic_detectors=False) # append QEC rounds
-                    
+                #print('during ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
+
             ## constructing detectors for each layer differently:
             if round_ix == 0: # first layer, we put 2 body operators for the detectors.
                 if num_CX_in_layer % 2 == 0 : # new GB - no entanglement in this layer
@@ -406,7 +415,12 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                             check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)), stim.target_rec(-(2*num_of_measure_qubits - check_ix))]
                         
                         lc.append('DETECTOR', check_targets)
-            
+
+            lc.append('MOVE_TO_STORAGE',
+                      np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]),
+                      200)
+            #print('after ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
+
             # lc.append_from_stim_program_text("""TICK""") # ending a QEC round
             lc.append('MOVE_TO_STORAGE', np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 200)
             
