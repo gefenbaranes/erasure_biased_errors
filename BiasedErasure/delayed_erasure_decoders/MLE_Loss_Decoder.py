@@ -727,8 +727,10 @@ class MLE_Loss_Decoder:
         def fill_loss_qubits_remove_gates_range(lost_q, instruction_ix):
             round_ix = next((round_ix for round_ix, instructions in sorted(self.rounds_by_ix.items()) if sum(len(self.rounds_by_ix[r]) for r in range(-1, round_ix+1)) > instruction_ix), None)
             # round_ix = round_lookup.get(instruction_ix)
+            # try:
             [reset_round_ix, detection_round_ix] = next(([cycle[0],cycle[1]] for cycle in self.qubit_lifecycles_and_losses[lost_q] if cycle[0] <= round_ix <= cycle[1]), None)
-            
+            # except:
+                # print("HI")
             # detection_round_offset_start = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < reset_round_ix)
             detection_round_offset_end = sum(len(self.rounds_by_ix[round_ix]) for round_ix in self.rounds_by_ix if round_ix < detection_round_ix + 1)
             
