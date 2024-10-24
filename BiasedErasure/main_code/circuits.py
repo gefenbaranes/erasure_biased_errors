@@ -303,9 +303,6 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
 
     ###  initialization step:
     # initialize qubit 0 in |+> and qubit 1 in |0>:
-    if num_layers > 1: # we have QEC
-        lc.append('MOVE_TO_STORAGE', np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
-    lc.append('MOVE_TO_ENTANGLING', np.concatenate([lc.logical_qubits[i].data_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
     if num_layers > 1:  # we have QEC
         lc.append('MOVE_TO_STORAGE',
                   np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
