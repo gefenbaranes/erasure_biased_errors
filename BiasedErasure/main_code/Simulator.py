@@ -429,7 +429,11 @@ class Simulator:
             
             else:
                 if self.decoder == "MLE":
-                    detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
+                    if self.circuit_type == 'memory_wrong': # we need to first convert observables to detectors, get dem, and reconvert back.
+                        MLE_Loss_Decoder_class.set_up_Pauli_DEM()
+                        detector_error_model = MLE_Loss_Decoder_class.from_hyperedges_matrix_into_stim_dem(MLE_Loss_Decoder_class.Pauli_DEM_matrix)
+                    else:
+                        detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
                     predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model, detector_shots = detection_events)
                 else:
                     detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True, ignore_decomposition_failures=True) 
