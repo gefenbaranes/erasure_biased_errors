@@ -213,9 +213,9 @@ class Simulator:
         
         if self.printing:
             print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
-            print(f"len potential_lost_qubits: {len(LogicalCircuit.potential_lost_qubits)}")
-            print(f"potential_lost_qubits: {list(LogicalCircuit.potential_lost_qubits)}")
-            print(f"loss_probabilities: {LogicalCircuit.loss_probabilities}")
+            print(f"len potential_lost_qubits: {len(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
+            print(f"potential_lost_qubits: {list(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
+            print(f"loss_probabilities: {MLE_Loss_Decoder_class.circuit.loss_probabilities}")
             
         return MLE_Loss_Decoder_class
         
@@ -358,7 +358,9 @@ class Simulator:
         LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=xzzx, noise_params=noise_params) # real experimental circuit with the added pulses
         MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy, use_independent_decoder)
 
-
+        if self.printing:
+            print(f"circuit used for simulation is: {MLE_Loss_Decoder_class.circuit}")
+            
         if 2 in measurement_events and use_loss_decoding:
             
             start_time = time.time()

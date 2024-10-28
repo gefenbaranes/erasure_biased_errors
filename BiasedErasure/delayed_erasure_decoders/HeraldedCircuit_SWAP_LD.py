@@ -192,482 +192,482 @@ class HeraldedCircuit_SWAP_LD:
         return SWAP_circuit
     
     
-    def get_loss_location(self, loss_detection_events: list, SWAP_circuit=None):
-        # Iterate through circuit. Every time we encounter a loss event (flagged by the 'I' gate), record the loss.
-        # Also, add the SWAP gates when needed.
-        loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
-        round_ix = -1
-        inside_qec_round = False
-        SWAP_round_index = 0
-        SWAP_round_type = None
-        lost_qubits = [] # qubits that are lost and still undetectable (not measured)
-        lost_qubits_in_round = [] # qubit lost in every QEC round. initialized every round.
-        self.qubit_lifecycles_and_losses = {i: [] for i in self.ancilla_qubits + self.data_qubits}
-        qubit_active_cycle = {i: None for i in self.ancilla_qubits + self.data_qubits}
-        first_QEC_round = True
+    # def get_loss_location(self, loss_detection_events: list, SWAP_circuit=None):
+    #     # Iterate through circuit. Every time we encounter a loss event (flagged by the 'I' gate), record the loss.
+    #     # Also, add the SWAP gates when needed.
+    #     loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
+    #     round_ix = -1
+    #     inside_qec_round = False
+    #     SWAP_round_index = 0
+    #     SWAP_round_type = None
+    #     lost_qubits = [] # qubits that are lost and still undetectable (not measured)
+    #     lost_qubits_in_round = [] # qubit lost in every QEC round. initialized every round.
+    #     self.qubit_lifecycles_and_losses = {i: [] for i in self.ancilla_qubits + self.data_qubits}
+    #     qubit_active_cycle = {i: None for i in self.ancilla_qubits + self.data_qubits}
+    #     first_QEC_round = True
         
-        for instruction in SWAP_circuit:
-            # Check when each qubit is init and measured:
-            if instruction.name in ['R', 'RX']: # Beginning of a cycle for these qubits
-                qubits = set([q.value for q in instruction.targets_copy()])
-                for q in qubits:
-                    self.qubit_lifecycles_and_losses[q].append([round_ix, None, None]) # Begin a new cycle for each qubit
-                    qubit_active_cycle[q] = len(self.qubit_lifecycles_and_losses[q]) - 1
+    #     for instruction in SWAP_circuit:
+    #         # Check when each qubit is init and measured:
+    #         if instruction.name in ['R', 'RX']: # Beginning of a cycle for these qubits
+    #             qubits = set([q.value for q in instruction.targets_copy()])
+    #             for q in qubits:
+    #                 self.qubit_lifecycles_and_losses[q].append([round_ix, None, None]) # Begin a new cycle for each qubit
+    #                 qubit_active_cycle[q] = len(self.qubit_lifecycles_and_losses[q]) - 1
 
-            if instruction.name in ['M', 'MX']: # End of a cycle for these qubits
-                qubits = set([q.value for q in instruction.targets_copy()])
-                lost_qubits.extend(lost_qubits_in_round)
-                for q in qubits:
-                    if q in lost_qubits:
-                        self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][2] = True
-                        lost_qubits.remove(q)
-                    else:
-                        self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][2] = False
-                    self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix # Close the active cycle with the measurement round
-                    qubit_active_cycle[q] = None
+    #         if instruction.name in ['M', 'MX']: # End of a cycle for these qubits
+    #             qubits = set([q.value for q in instruction.targets_copy()])
+    #             lost_qubits.extend(lost_qubits_in_round)
+    #             for q in qubits:
+    #                 if q in lost_qubits:
+    #                     self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][2] = True
+    #                     lost_qubits.remove(q)
+    #                 else:
+    #                     self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][2] = False
+    #                 self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix # Close the active cycle with the measurement round
+    #                 qubit_active_cycle[q] = None
 
                         
             
-            # QEC rounds:
-            if instruction.name == 'TICK':
-                if not inside_qec_round: # beginning of QEC round
-                    if first_QEC_round:
-                        round_ix += 1; first_QEC_round = False
-                    if self.printing:
-                        print(f"Starting QEC Round {round_ix}")
-                    lost_qubits_in_round = [] # lost qubits specifically in this QEC round
-                    if (round_ix+1)%self.loss_detection_freq == 0:
-                        SWAP_round = True
-                        SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                        SWAP_round_index += 1
-                    else:
-                        SWAP_round = False
-                else: # end of round
-                    if self.printing:
-                        print(f"Finished QEC Round {round_ix}, and lost qubits {lost_qubits_in_round}, thus now we have the following undetectable losses: {lost_qubits}")
-                    self.lost_qubits_by_qec_round[round_ix] = lost_qubits_in_round
-                    self.QEC_round_types[round_ix] = SWAP_round_type if SWAP_round else 'regular'
+    #         # QEC rounds:
+    #         if instruction.name == 'TICK':
+    #             if not inside_qec_round: # beginning of QEC round
+    #                 if first_QEC_round:
+    #                     round_ix += 1; first_QEC_round = False
+    #                 if self.printing:
+    #                     print(f"Starting QEC Round {round_ix}")
+    #                 lost_qubits_in_round = [] # lost qubits specifically in this QEC round
+    #                 if (round_ix+1)%self.loss_detection_freq == 0:
+    #                     SWAP_round = True
+    #                     SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+    #                     SWAP_round_index += 1
+    #                 else:
+    #                     SWAP_round = False
+    #             else: # end of round
+    #                 if self.printing:
+    #                     print(f"Finished QEC Round {round_ix}, and lost qubits {lost_qubits_in_round}, thus now we have the following undetectable losses: {lost_qubits}")
+    #                 self.lost_qubits_by_qec_round[round_ix] = lost_qubits_in_round
+    #                 self.QEC_round_types[round_ix] = SWAP_round_type if SWAP_round else 'regular'
 
-                    round_ix += 1
-                inside_qec_round = not inside_qec_round
-                continue
+    #                 round_ix += 1
+    #             inside_qec_round = not inside_qec_round
+    #             continue
             
-            if inside_qec_round:
-                if instruction.name == 'I': # check loss event --> update lost_ancilla_qubits and lost_data_qubits
-                    loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, lost_qubits_in_round, loss_detector_ix)
+    #         if inside_qec_round:
+    #             if instruction.name == 'I': # check loss event --> update lost_ancilla_qubits and lost_data_qubits
+    #                 loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, lost_qubits_in_round, loss_detector_ix)
                     
                             
-            else:
-                pass # we don't need to document losses outside QEC rounds because we assume there are non
-                # lost_ancilla_qubits = []
-                # lost_data_qubits = []
-                # if instruction.name == 'I': # loss event
-                #     loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, data_qubits, lost_data_qubits, lost_ancilla_qubits, loss_detector_ix)
+    #         else:
+    #             pass # we don't need to document losses outside QEC rounds because we assume there are non
+    #             # lost_ancilla_qubits = []
+    #             # lost_data_qubits = []
+    #             # if instruction.name == 'I': # loss event
+    #             #     loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, data_qubits, lost_data_qubits, lost_ancilla_qubits, loss_detector_ix)
 
-        # Handle unmeasured qubits at the end of the circuit
-        for q in qubit_active_cycle:
-            if qubit_active_cycle[q] is not None:
-                self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
+    #     # Handle unmeasured qubits at the end of the circuit
+    #     for q in qubit_active_cycle:
+    #         if qubit_active_cycle[q] is not None:
+    #             self.qubit_lifecycles_and_losses[q][qubit_active_cycle[q]][1] = round_ix
 
 
 
-    def heralded_new_circuit(self, loss_detection_events: list):
-        """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
-        # Initialization for every shot:
-        self.lost_ancillas = {}  ###
-        self.qec_cycles_complete = False  ###
-        self.lost_ancillas_by_qec_round = {}  # {qec_round: [lost_ancilla_qubits]}
-        self.lost_data_by_ld_round = {}  #  {ld_round: [lost_data_qubits]}
-        self.lost_data_by_qec_round = {}  # {qec_round: [lost_data_qubits]}
-        self.lost_qubits_by_qec_round = {}
-        self.QEC_round_types = {} # {qec_round: type}
-        self.heralded_loss_qubits = {}   #!  {qec_round: [detectable_loss_qubits_in_this_round]}
-        self.qubit_lifecycles_and_losses = {} 
+    # def heralded_new_circuit(self, loss_detection_events: list):
+    #     """ This function takes the original circuit with places for potential losses and loss detection events, and generates 2 circuits: 1. experimental measurement circuit. 2. Theory decoding circuit. """
+    #     # Initialization for every shot:
+    #     self.lost_ancillas = {}  ###
+    #     self.qec_cycles_complete = False  ###
+    #     self.lost_ancillas_by_qec_round = {}  # {qec_round: [lost_ancilla_qubits]}
+    #     self.lost_data_by_ld_round = {}  #  {ld_round: [lost_data_qubits]}
+    #     self.lost_data_by_qec_round = {}  # {qec_round: [lost_data_qubits]}
+    #     self.lost_qubits_by_qec_round = {}
+    #     self.QEC_round_types = {} # {qec_round: type}
+    #     self.heralded_loss_qubits = {}   #!  {qec_round: [detectable_loss_qubits_in_this_round]}
+    #     self.qubit_lifecycles_and_losses = {} 
         
-        # First sweep: get location of lost qubits in the circuit.
-        self.get_loss_location(loss_detection_events=loss_detection_events, SWAP_circuit=self.SWAP_circuit) 
-        self.total_num_QEC_round = len(self.lost_data_by_qec_round)
+    #     # First sweep: get location of lost qubits in the circuit.
+    #     self.get_loss_location(loss_detection_events=loss_detection_events, SWAP_circuit=self.SWAP_circuit) 
+    #     self.total_num_QEC_round = len(self.lost_data_by_qec_round)
         
         
         
-        if self.printing :
-            print(f"lost_qubits_by_qec_round={self.lost_qubits_by_qec_round}")
-            print(f"types of rounds: {self.QEC_round_types}")
-            print(f" lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
-            print(f" self.gates_ordering_dict: {self.gates_ordering_dict}")
-            # print(f"\nNew SWAP circuit: \n{SWAP_circuit}")
+    #     if self.printing :
+    #         print(f"lost_qubits_by_qec_round={self.lost_qubits_by_qec_round}")
+    #         print(f"types of rounds: {self.QEC_round_types}")
+    #         print(f" lifecycles of qubits: {self.qubit_lifecycles_and_losses}\n")
+    #         print(f" self.gates_ordering_dict: {self.gates_ordering_dict}")
+    #         # print(f"\nNew SWAP circuit: \n{SWAP_circuit}")
 
-        # Second sweep: fill in the experimental circuit (heralded_circuit) and decoding circuit (new_lossless_circuit).
-        heralded_circuit = stim.Circuit()
-        new_lossless_circuit = stim.Circuit()
-        loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
-        lost_qubits = [] # track which qubits are lost during the round, can be lost in previous round and not detected.
-        round_ix = -1
-        CZ_round_ix = 0
-        first_QEC_round = True
-        inside_qec_round = False
-        SWAP_round = False
-        SWAP_round_index = 0
-        qubits_at_risk = set()
-        # SWAP_round_type = None
-        for instruction in self.SWAP_circuit:
-            if instruction.name == 'TICK': # begin of a QEC round:
-                if not inside_qec_round: # beginning of round
-                    if first_QEC_round:
-                        round_ix +=1; first_QEC_round = False
-                    self.qec_cycles_complete = True
-                    CZ_round_ix = 0
-                    # lost_qubits = []
-                    # ld_round = int(round_ix / self.loss_detection_freq) # check that its the same
-                    # last_QEC_round = True if round_ix == self.total_num_QEC_round-1 else False
-                    if (round_ix+1)%self.loss_detection_freq == 0:
-                        SWAP_round = True
-                        # SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                        SWAP_round_index += 1
-                    else:
-                        SWAP_round = False
+    #     # Second sweep: fill in the experimental circuit (heralded_circuit) and decoding circuit (new_lossless_circuit).
+    #     heralded_circuit = stim.Circuit()
+    #     new_lossless_circuit = stim.Circuit()
+    #     loss_detector_ix = 0  # tracks the index of detectors in the circuit as we iterate.
+    #     lost_qubits = [] # track which qubits are lost during the round, can be lost in previous round and not detected.
+    #     round_ix = -1
+    #     CZ_round_ix = 0
+    #     first_QEC_round = True
+    #     inside_qec_round = False
+    #     SWAP_round = False
+    #     SWAP_round_index = 0
+    #     qubits_at_risk = set()
+    #     # SWAP_round_type = None
+    #     for instruction in self.SWAP_circuit:
+    #         if instruction.name == 'TICK': # begin of a QEC round:
+    #             if not inside_qec_round: # beginning of round
+    #                 if first_QEC_round:
+    #                     round_ix +=1; first_QEC_round = False
+    #                 self.qec_cycles_complete = True
+    #                 CZ_round_ix = 0
+    #                 # lost_qubits = []
+    #                 # ld_round = int(round_ix / self.loss_detection_freq) # check that its the same
+    #                 # last_QEC_round = True if round_ix == self.total_num_QEC_round-1 else False
+    #                 if (round_ix+1)%self.loss_detection_freq == 0:
+    #                     SWAP_round = True
+    #                     # SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+    #                     SWAP_round_index += 1
+    #                 else:
+    #                     SWAP_round = False
                     
-                    # Check for qubits in the current round that might be lost based on their lifecycle
-                    qubits_at_risk = set()
-                    for qubit, lifecycle in self.qubit_lifecycles_and_losses.items():
-                        for cycle in lifecycle:
-                            if cycle[0] <= round_ix <= cycle[1] and cycle[2]:  # Check if the qubit is active and might be lost in this round
-                                qubits_at_risk.add(qubit)
+    #                 # Check for qubits in the current round that might be lost based on their lifecycle
+    #                 qubits_at_risk = set()
+    #                 for qubit, lifecycle in self.qubit_lifecycles_and_losses.items():
+    #                     for cycle in lifecycle:
+    #                         if cycle[0] <= round_ix <= cycle[1] and cycle[2]:  # Check if the qubit is active and might be lost in this round
+    #                             qubits_at_risk.add(qubit)
                     
-                    if self.printing:
-                        print(f"a new QEC round number {round_ix}! is it a SWAP round? {SWAP_round} (loss detection freq = {self.loss_detection_freq})")
+    #                 if self.printing:
+    #                     print(f"a new QEC round number {round_ix}! is it a SWAP round? {SWAP_round} (loss detection freq = {self.loss_detection_freq})")
                 
-                else: # end of round
-                    round_ix += 1
+    #             else: # end of round
+    #                 round_ix += 1
                 
-                inside_qec_round = not inside_qec_round
-                heralded_circuit.append('TICK')
-                new_lossless_circuit.append('TICK')
-                continue
+    #             inside_qec_round = not inside_qec_round
+    #             heralded_circuit.append('TICK')
+    #             new_lossless_circuit.append('TICK')
+    #             continue
 
-            if inside_qec_round:
-                loss_detector_ix, CZ_round_ix = self.add_instruction(instruction, heralded_circuit, new_lossless_circuit, loss_detection_events, loss_detector_ix,
-                                                        lost_qubits=lost_qubits, round_ix=round_ix, CZ_round_ix=CZ_round_ix,
-                                                        qubits_at_risk=qubits_at_risk) 
-            else:
-                loss_detector_ix, CZ_round_ix = self.add_instruction(instruction, heralded_circuit, new_lossless_circuit, loss_detection_events, loss_detector_ix,
-                                                        lost_qubits=lost_qubits, round_ix=round_ix, CZ_round_ix=CZ_round_ix,
-                                                        qubits_at_risk=qubits_at_risk)
-        return heralded_circuit, new_lossless_circuit
+    #         if inside_qec_round:
+    #             loss_detector_ix, CZ_round_ix = self.add_instruction(instruction, heralded_circuit, new_lossless_circuit, loss_detection_events, loss_detector_ix,
+    #                                                     lost_qubits=lost_qubits, round_ix=round_ix, CZ_round_ix=CZ_round_ix,
+    #                                                     qubits_at_risk=qubits_at_risk) 
+    #         else:
+    #             loss_detector_ix, CZ_round_ix = self.add_instruction(instruction, heralded_circuit, new_lossless_circuit, loss_detection_events, loss_detector_ix,
+    #                                                     lost_qubits=lost_qubits, round_ix=round_ix, CZ_round_ix=CZ_round_ix,
+    #                                                     qubits_at_risk=qubits_at_risk)
+    #     return heralded_circuit, new_lossless_circuit
     
-    def add_instruction(self, instruction, circuit: stim.Circuit, new_lossless_circuit: stim.Circuit, loss_detection_events: list, loss_detector_ix: int,
-                        round_ix:int, CZ_round_ix:int, lost_qubits: list, qubits_at_risk=[]):
+    # def add_instruction(self, instruction, circuit: stim.Circuit, new_lossless_circuit: stim.Circuit, loss_detection_events: list, loss_detector_ix: int,
+    #                     round_ix:int, CZ_round_ix:int, lost_qubits: list, qubits_at_risk=[]):
 
 
-        # Update lost qubits lists:
-        if instruction.name == 'I': # loss event
-            loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, lost_qubits, loss_detector_ix) # update lost_qubits, add losses
+    #     # Update lost qubits lists:
+    #     if instruction.name == 'I': # loss event
+    #         loss_detector_ix = self.update_loss_lists(instruction, loss_detection_events, lost_qubits, loss_detector_ix) # update lost_qubits, add losses
 
-        elif instruction.name in ['CZ','CX']:
-            gate_order_strength_dict_ancilla_loss = {0: 1, 1: 0.75, 2: 0.5, 3: 0.25}
-            gate_order_strength_dict_data_loss = {3: 1, 2: 0.75, 1: 0.5, 0: 0.25}
+    #     elif instruction.name in ['CZ','CX']:
+    #         gate_order_strength_dict_ancilla_loss = {0: 1, 1: 0.75, 2: 0.5, 3: 0.25}
+    #         gate_order_strength_dict_data_loss = {3: 1, 2: 0.75, 1: 0.5, 0: 0.25}
             
-            # gate_order_strength =  CZ_order_strength_dict[CZ_round_ix] # first gates have higher probability to cause errors due to loss. # TODO: correct it, for data loss and ancilla loss its different order
-            Total_factor = self.phys_error*self.erasure_ratio
-            # noise_channel = [0,0,0.5*Total_factor] if instruction.name == 'CZ' else [0.5*Total_factor, 0, 0]
-            qubits = [q.value for q in instruction.targets_copy()]
+    #         # gate_order_strength =  CZ_order_strength_dict[CZ_round_ix] # first gates have higher probability to cause errors due to loss. # TODO: correct it, for data loss and ancilla loss its different order
+    #         Total_factor = self.phys_error*self.erasure_ratio
+    #         # noise_channel = [0,0,0.5*Total_factor] if instruction.name == 'CZ' else [0.5*Total_factor, 0, 0]
+    #         qubits = [q.value for q in instruction.targets_copy()]
             
-            # Lossless circuit: the CZ is here, but we add error model to acount for errors in the decoder:
-            new_lossless_circuit.append(instruction) # append the CZ gate to the lossless circuit anyway
+    #         # Lossless circuit: the CZ is here, but we add error model to acount for errors in the decoder:
+    #         new_lossless_circuit.append(instruction) # append the CZ gate to the lossless circuit anyway
             
-            pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
-            for (c,t) in pairs:
-                ancilla_target = c if (c not in self.data_qubits) else t
-                data_target = c if c in self.data_qubits else t
+    #         pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
+    #         for (c,t) in pairs:
+    #             ancilla_target = c if (c not in self.data_qubits) else t
+    #             data_target = c if c in self.data_qubits else t
 
-                # Heralded loss circuit: the CZ is not here is we lost one of the qubits:
-                if (c in lost_qubits) or (t in lost_qubits): # remove the gate from the heralded circuit:
-                    if self.printing :
-                        print(f"Removing this gate from the heralded circuit: {instruction.name} {c},{t}, because my lost qubits = {lost_qubits}")
-                    pass
-                else:
-                    circuit.append(instruction.name, [c,t])
+    #             # Heralded loss circuit: the CZ is not here is we lost one of the qubits:
+    #             if (c in lost_qubits) or (t in lost_qubits): # remove the gate from the heralded circuit:
+    #                 if self.printing :
+    #                     print(f"Removing this gate from the heralded circuit: {instruction.name} {c},{t}, because my lost qubits = {lost_qubits}")
+    #                 pass
+    #             else:
+    #                 circuit.append(instruction.name, [c,t])
             
 
-                # Lossless circuit: Add noise to neighbor data of lost ancilla and to neighbor ancilla of lost data.
-                if instruction.name == 'CX':
-                    if (self.SSR and c in qubits_at_risk) or (not self.SSR):
-                        # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
-                        # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if c in logical_qubit.measure_x_qubits + logical_qubit.measure_z_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
-                        relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[c] if cycle[0] <= round_ix <= cycle[1]), None)
-                        # noise_channel = [0.5*Total_factor*gate_order_strength/relevant_cycle_length,0,0]
-                        # new_lossless_circuit.append('PAULI_CHANNEL_1', [t], noise_channel)
-                        # generate neighbors list by gate order:
-                        neighbors_by_order = self.gates_ordering_dict[round_ix][c] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
-                        qubit_type = self.qubits_type_by_qec_round[round_ix][c]
-                        # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
-                        # qubit_type = 'data' if c in logical_qubit.data_qubits else 'ancilla'
-                        self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=c, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
+    #             # Lossless circuit: Add noise to neighbor data of lost ancilla and to neighbor ancilla of lost data.
+    #             if instruction.name == 'CX':
+    #                 if (self.SSR and c in qubits_at_risk) or (not self.SSR):
+    #                     # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
+    #                     # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if c in logical_qubit.measure_x_qubits + logical_qubit.measure_z_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
+    #                     relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[c] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                     # noise_channel = [0.5*Total_factor*gate_order_strength/relevant_cycle_length,0,0]
+    #                     # new_lossless_circuit.append('PAULI_CHANNEL_1', [t], noise_channel)
+    #                     # generate neighbors list by gate order:
+    #                     neighbors_by_order = self.gates_ordering_dict[round_ix][c] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
+    #                     qubit_type = self.qubits_type_by_qec_round[round_ix][c]
+    #                     # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
+    #                     # qubit_type = 'data' if c in logical_qubit.data_qubits else 'ancilla'
+    #                     self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=c, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
                         
-                    if (self.SSR and t in qubits_at_risk) or (not self.SSR):
+    #                 if (self.SSR and t in qubits_at_risk) or (not self.SSR):
                         
-                        # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if t in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
-                        relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
-                        # noise_channel = [0,0,0.5*Total_factor*gate_order_strength/relevant_cycle_length]
-                        # new_lossless_circuit.append('PAULI_CHANNEL_1', [c], noise_channel)
-                        neighbors_by_order = self.gates_ordering_dict[round_ix][t] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
-                        qubit_type = self.qubits_type_by_qec_round[round_ix][t]
-                        # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
-                        # qubit_type = 'data' if t in logical_qubit.data_qubits else 'ancilla'
-                        self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=t, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
+    #                     # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if t in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
+    #                     relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                     # noise_channel = [0,0,0.5*Total_factor*gate_order_strength/relevant_cycle_length]
+    #                     # new_lossless_circuit.append('PAULI_CHANNEL_1', [c], noise_channel)
+    #                     neighbors_by_order = self.gates_ordering_dict[round_ix][t] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
+    #                     qubit_type = self.qubits_type_by_qec_round[round_ix][t]
+    #                     # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
+    #                     # qubit_type = 'data' if t in logical_qubit.data_qubits else 'ancilla'
+    #                     self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=t, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
                         
-                elif instruction.name == 'CZ':
-                    if (self.SSR and c in qubits_at_risk) or (not self.SSR):
-                        # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if c in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
-                        relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[c] if cycle[0] <= round_ix <= cycle[1]), None)
-                        # noise_channel = [0, 0, 0.5*Total_factor*gate_order_strength/relevant_cycle_length]
-                        # new_lossless_circuit.append('PAULI_CHANNEL_1', [t], noise_channel)
-                        neighbors_by_order = self.gates_ordering_dict[round_ix][c] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
-                        qubit_type = self.qubits_type_by_qec_round[round_ix][c]
-                        # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
-                        # qubit_type = 'data' if c in logical_qubit.data_qubits else 'ancilla'
-                        self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=c, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
+    #             elif instruction.name == 'CZ':
+    #                 if (self.SSR and c in qubits_at_risk) or (not self.SSR):
+    #                     # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if c in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
+    #                     relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[c] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                     # noise_channel = [0, 0, 0.5*Total_factor*gate_order_strength/relevant_cycle_length]
+    #                     # new_lossless_circuit.append('PAULI_CHANNEL_1', [t], noise_channel)
+    #                     neighbors_by_order = self.gates_ordering_dict[round_ix][c] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
+    #                     qubit_type = self.qubits_type_by_qec_round[round_ix][c]
+    #                     # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
+    #                     # qubit_type = 'data' if c in logical_qubit.data_qubits else 'ancilla'
+    #                     self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=c, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
                         
-                    if (self.SSR and t in qubits_at_risk) or (not self.SSR):
-                        # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if t in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
-                        relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
-                        # noise_channel = [0, 0, 0.5*Total_factor*gate_order_strength/relevant_cycle_length]
-                        # new_lossless_circuit.append('PAULI_CHANNEL_1', [c], noise_channel)
-                        neighbors_by_order = self.gates_ordering_dict[round_ix][t] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
-                        qubit_type = self.qubits_type_by_qec_round[round_ix][t]
-                        # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
-                        # qubit_type = 'data' if t in logical_qubit.data_qubits else 'ancilla'
-                        self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=t, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
+    #                 if (self.SSR and t in qubits_at_risk) or (not self.SSR):
+    #                     # gate_order_strength_dict = gate_order_strength_dict_ancilla_loss if t in self.ancilla_qubits else gate_order_strength_dict_data_loss; gate_order_strength = gate_order_strength_dict[CZ_round_ix]
+    #                     relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                     # noise_channel = [0, 0, 0.5*Total_factor*gate_order_strength/relevant_cycle_length]
+    #                     # new_lossless_circuit.append('PAULI_CHANNEL_1', [c], noise_channel)
+    #                     neighbors_by_order = self.gates_ordering_dict[round_ix][t] # {gate_1: [neigh, noise], gate_2: [neigh, noise],...}
+    #                     qubit_type = self.qubits_type_by_qec_round[round_ix][t]
+    #                     # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
+    #                     # qubit_type = 'data' if t in logical_qubit.data_qubits else 'ancilla'
+    #                     self.add_CZ_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, gate_order = CZ_round_ix, lost_qubit=t, lost_qubit_type=qubit_type, neighbors_by_order = neighbors_by_order, round_ix=round_ix) # NEW
                         
-            CZ_round_ix += 1
+    #         CZ_round_ix += 1
             
             
-        elif instruction.name in ['SWAP']:
-            qubits = [q.value for q in instruction.targets_copy()]
+    #     elif instruction.name in ['SWAP']:
+    #         qubits = [q.value for q in instruction.targets_copy()]
 
-            new_lossless_circuit.append(instruction) # Lossless circuit
+    #         new_lossless_circuit.append(instruction) # Lossless circuit
             
-            pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
-            for (c,t) in pairs:
-                # Heralded circuit - remove gate:
-                if (c in lost_qubits) or (t in lost_qubits):
-                    if self.printing :
-                        print(f"Removing this gate from the heralded circuit: {instruction.name} {(c,t)}, because my lost qubits = {lost_qubits}")
-                    pass
-                else:
-                    circuit.append(instruction.name, [c,t])
+    #         pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
+    #         for (c,t) in pairs:
+    #             # Heralded circuit - remove gate:
+    #             if (c in lost_qubits) or (t in lost_qubits):
+    #                 if self.printing :
+    #                     print(f"Removing this gate from the heralded circuit: {instruction.name} {(c,t)}, because my lost qubits = {lost_qubits}")
+    #                 pass
+    #             else:
+    #                 circuit.append(instruction.name, [c,t])
                     
-                # lossless circuit - noise on the paired qubit of a lost qubit:
-                if (self.SSR and c in qubits_at_risk) or (not self.SSR):
-                    relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
-                    self.add_SWAP_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, qubit=t)
-                    # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
-                    # if c in logical_qubit.measure_qubits_x + logical_qubit.measure_qubits_z:
-                    #     ancilla_qubit_type = 'X' if c in logical_qubit.measure_qubits_x else 'Z'
-                    #     self.add_SWAP_neighbors_errors_ancilla_loss(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, ancilla_qubit_type = ancilla_qubit_type, data_neigh_index=t) # NEW
-                    # else:
-                    #     print("need to build this feature")
+    #             # lossless circuit - noise on the paired qubit of a lost qubit:
+    #             if (self.SSR and c in qubits_at_risk) or (not self.SSR):
+    #                 relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                 self.add_SWAP_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, qubit=t)
+    #                 # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(c)
+    #                 # if c in logical_qubit.measure_qubits_x + logical_qubit.measure_qubits_z:
+    #                 #     ancilla_qubit_type = 'X' if c in logical_qubit.measure_qubits_x else 'Z'
+    #                 #     self.add_SWAP_neighbors_errors_ancilla_loss(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, ancilla_qubit_type = ancilla_qubit_type, data_neigh_index=t) # NEW
+    #                 # else:
+    #                 #     print("need to build this feature")
                         
-                if (self.SSR and t in qubits_at_risk) or (not self.SSR):
-                    relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
-                    self.add_SWAP_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, qubit=c)
-                    # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
-                    # if t in logical_qubit.measure_qubits_x + logical_qubit.measure_qubits_z:
-                    #     ancilla_qubit_type = 'X' if t in logical_qubit.measure_qubits_x else 'Z'
-                    #     self.add_SWAP_neighbors_errors_ancilla_loss(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, ancilla_qubit_type = ancilla_qubit_type, data_neigh_index=c) # NEW
-                    # else:
-                    #     print("need to build this feature")
+    #             if (self.SSR and t in qubits_at_risk) or (not self.SSR):
+    #                 relevant_cycle_length = next((cycle[1] - cycle[0] + 1 for cycle in self.qubit_lifecycles_and_losses[t] if cycle[0] <= round_ix <= cycle[1]), None)
+    #                 self.add_SWAP_neighbors_errors(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, qubit=c)
+    #                 # logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(t)
+    #                 # if t in logical_qubit.measure_qubits_x + logical_qubit.measure_qubits_z:
+    #                 #     ancilla_qubit_type = 'X' if t in logical_qubit.measure_qubits_x else 'Z'
+    #                 #     self.add_SWAP_neighbors_errors_ancilla_loss(cycle_length = relevant_cycle_length, circuit = new_lossless_circuit, ancilla_qubit_type = ancilla_qubit_type, data_neigh_index=c) # NEW
+    #                 # else:
+    #                 #     print("need to build this feature")
                 
                 
-        elif instruction.name in ['H', 'R', 'RX']:
-        # elif instruction.name not in ['DETECTOR', 'OBSERVABLE_INCLUDE']:
-            new_lossless_circuit.append(instruction) # append the gate to the lossless circuit anyway
-            qubits = [q.value for q in instruction.targets_copy()]
-            for q in qubits: # remove the gate from the heralded circuit:
-                if q in lost_qubits:
-                    if self.printing :
-                        print(f"Removing this gate from the heralded circuit: {instruction.name} {q}, because my lost qubits = {lost_qubits}")
-                    pass
-                else:
-                    circuit.append(instruction.name, [q])
+    #     elif instruction.name in ['H', 'R', 'RX']:
+    #     # elif instruction.name not in ['DETECTOR', 'OBSERVABLE_INCLUDE']:
+    #         new_lossless_circuit.append(instruction) # append the gate to the lossless circuit anyway
+    #         qubits = [q.value for q in instruction.targets_copy()]
+    #         for q in qubits: # remove the gate from the heralded circuit:
+    #             if q in lost_qubits:
+    #                 if self.printing :
+    #                     print(f"Removing this gate from the heralded circuit: {instruction.name} {q}, because my lost qubits = {lost_qubits}")
+    #                 pass
+    #             else:
+    #                 circuit.append(instruction.name, [q])
 
             
-        elif instruction.name in ['MRX', 'MR']:
-            qbts = instruction.targets_copy()
+    #     elif instruction.name in ['MRX', 'MR']:
+    #         qbts = instruction.targets_copy()
 
-            if len(lost_qubits) == 0: # no qubit could have been lost in this round anyway.
-                circuit.append(instruction)
+    #         if len(lost_qubits) == 0: # no qubit could have been lost in this round anyway.
+    #             circuit.append(instruction)
                 
-            else:
-                for ix, qbt in enumerate(qbts):
-                    q = qbt.value
+    #         else:
+    #             for ix, qbt in enumerate(qbts):
+    #                 q = qbt.value
                     
-                    if q in lost_qubits: # qubits_at_risk
-                        # remove from the lost_qubits list
-                        lost_qubits.remove(q)
+    #                 if q in lost_qubits: # qubits_at_risk
+    #                     # remove from the lost_qubits list
+    #                     lost_qubits.remove(q)
                         
-                        # Lossless circuit - create a supercheck operator:
-                        self.add_pauli_channel(new_lossless_circuit, [q])
+    #                     # Lossless circuit - create a supercheck operator:
+    #                     self.add_pauli_channel(new_lossless_circuit, [q])
 
-                        # Heralded circuit - lost ancilla qubits give deterministic |0> measurement:
-                        if instruction.name == 'MR':
-                            circuit.append('R', [q])
-                            circuit.append('MR', [q])
-                        elif instruction.name == 'MRX':
-                            circuit.append('RX', [q])
-                            circuit.append('MRX', [q])
-                    else:
-                        circuit.append(instruction.name, [q])
+    #                     # Heralded circuit - lost ancilla qubits give deterministic |0> measurement:
+    #                     if instruction.name == 'MR':
+    #                         circuit.append('R', [q])
+    #                         circuit.append('MR', [q])
+    #                     elif instruction.name == 'MRX':
+    #                         circuit.append('RX', [q])
+    #                         circuit.append('MRX', [q])
+    #                 else:
+    #                     circuit.append(instruction.name, [q])
                         
-            new_lossless_circuit.append(instruction)
+    #         new_lossless_circuit.append(instruction)
             
             
-        elif instruction.name in ['M', 'MX']:
-            qbts = instruction.targets_copy()
+    #     elif instruction.name in ['M', 'MX']:
+    #         qbts = instruction.targets_copy()
 
-            if len(lost_qubits) == 0:
-                circuit.append(instruction)
+    #         if len(lost_qubits) == 0:
+    #             circuit.append(instruction)
                 
-            else:
-                for ix, qbt in enumerate(qbts):
-                    q = qbt.value
+    #         else:
+    #             for ix, qbt in enumerate(qbts):
+    #                 q = qbt.value
                     
-                    if q in lost_qubits:
-                        # remove from the lost_qubits list
-                        lost_qubits.remove(q)
+    #                 if q in lost_qubits:
+    #                     # remove from the lost_qubits list
+    #                     lost_qubits.remove(q)
                         
-                        # Lossless circuit - create a supercheck operator:
-                        self.add_pauli_channel(new_lossless_circuit, [q])
+    #                     # Lossless circuit - create a supercheck operator:
+    #                     self.add_pauli_channel(new_lossless_circuit, [q])
 
-                        # Heralded circuit - lost ancilla qubits give deterministic |0> measurement:
-                        if instruction.name == 'M':
-                            circuit.append('R', [q])
-                            circuit.append('M', [q])
-                        elif instruction.name == 'MX':
-                            circuit.append('RX', [q])
-                            circuit.append('MX', [q])
-                    else:
-                        circuit.append(instruction.name, [q])
+    #                     # Heralded circuit - lost ancilla qubits give deterministic |0> measurement:
+    #                     if instruction.name == 'M':
+    #                         circuit.append('R', [q])
+    #                         circuit.append('M', [q])
+    #                     elif instruction.name == 'MX':
+    #                         circuit.append('RX', [q])
+    #                         circuit.append('MX', [q])
+    #                 else:
+    #                     circuit.append(instruction.name, [q])
                         
-            new_lossless_circuit.append(instruction)
+    #         new_lossless_circuit.append(instruction)
             
             
-        else:
-            circuit.append(instruction)
-            new_lossless_circuit.append(instruction)
-        return loss_detector_ix, CZ_round_ix
+    #     else:
+    #         circuit.append(instruction)
+    #         new_lossless_circuit.append(instruction)
+    #     return loss_detector_ix, CZ_round_ix
 
 
-    def add_pauli_channel(self, circuit, targets):
-        if len(targets) == 1 and not self.biased_erasure:
-            circuit.append('PAULI_CHANNEL_1', targets, np.array([0.25, 0.25, 0.25])) # {X,Y,Z,I}
-        elif len(targets) == 1 and self.biased_erasure:
-            circuit.append('PAULI_CHANNEL_1', targets, np.array([0, 0, 0.5])) # {I,Z}
-        elif len(targets) == 2 and not self.biased_erasure:
-            circuit.append('PAULI_CHANNEL_2', targets, [1/16 for i in range(15)]) #  {X,Y,Z,I}**2
-        elif len(targets) == 2 and self.biased_erasure:
-            circuit.append('PAULI_CHANNEL_2', targets, np.array([0,0,0.25,0,0,0,0,0,0,0,0,0.25,0,0,0.25])) #  biased, {Z,I}**2
+    # def add_pauli_channel(self, circuit, targets):
+    #     if len(targets) == 1 and not self.biased_erasure:
+    #         circuit.append('PAULI_CHANNEL_1', targets, np.array([0.25, 0.25, 0.25])) # {X,Y,Z,I}
+    #     elif len(targets) == 1 and self.biased_erasure:
+    #         circuit.append('PAULI_CHANNEL_1', targets, np.array([0, 0, 0.5])) # {I,Z}
+    #     elif len(targets) == 2 and not self.biased_erasure:
+    #         circuit.append('PAULI_CHANNEL_2', targets, [1/16 for i in range(15)]) #  {X,Y,Z,I}**2
+    #     elif len(targets) == 2 and self.biased_erasure:
+    #         circuit.append('PAULI_CHANNEL_2', targets, np.array([0,0,0.25,0,0,0,0,0,0,0,0,0.25,0,0,0.25])) #  biased, {Z,I}**2
     
     
-    def add_idling_channel(self, circuit, targets, gate_duration=200):
-        # gate duration in us
-        x_error_rate = 1 - (1-5*1e-6/25)**gate_duration; y_error_rate = 1 - (1-5*1e-6/25)**gate_duration; z_error_rate = 1 - (1-2*1e-5/25)**gate_duration # error probability per gate_duration*1us
-        circuit.append('PAULI_CHANNEL_1', targets, np.array([x_error_rate, y_error_rate, z_error_rate])) # {X,Y,Z,I}
+    # def add_idling_channel(self, circuit, targets, gate_duration=200):
+    #     # gate duration in us
+    #     x_error_rate = 1 - (1-5*1e-6/25)**gate_duration; y_error_rate = 1 - (1-5*1e-6/25)**gate_duration; z_error_rate = 1 - (1-2*1e-5/25)**gate_duration # error probability per gate_duration*1us
+    #     circuit.append('PAULI_CHANNEL_1', targets, np.array([x_error_rate, y_error_rate, z_error_rate])) # {X,Y,Z,I}
         
         
-    def add_CZ_neighbors_errors(self, circuit, cycle_length: int, gate_order: int, lost_qubit: int, lost_qubit_type: str, neighbors_by_order: dict, round_ix:int):
-        # This function add noise channels on the neighbor qubits of the potential lost qubit. We apply correlated error channels according to the MLE correlated error channels we found in the paper.
-        """_summary_
+    # def add_CZ_neighbors_errors(self, circuit, cycle_length: int, gate_order: int, lost_qubit: int, lost_qubit_type: str, neighbors_by_order: dict, round_ix:int):
+    #     # This function add noise channels on the neighbor qubits of the potential lost qubit. We apply correlated error channels according to the MLE correlated error channels we found in the paper.
+    #     """_summary_
 
-        Args:
-            cycle_length (int): _description_
-            gate_order (int): the index of the gate in which we potentially lost the qubit (0,1,2,3)
-            lost_qubit_type (str): the type of qubit we potentially lost ('ancilla' or 'data')
-            neighbors_by_order (dict): a dictionary of all the neighbors {0: [neigh, error type], 1: ...} where error_type is the error to put on the neighbor if we lose this qubit.
-        """
-        def add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit):
-            updated_error_qubit_indices = [i for i in error_qubit_indices if i in neighbors_by_order]
-            if updated_error_qubit_indices != error_qubit_indices:
-                stop=1
+    #     Args:
+    #         cycle_length (int): _description_
+    #         gate_order (int): the index of the gate in which we potentially lost the qubit (0,1,2,3)
+    #         lost_qubit_type (str): the type of qubit we potentially lost ('ancilla' or 'data')
+    #         neighbors_by_order (dict): a dictionary of all the neighbors {0: [neigh, error type], 1: ...} where error_type is the error to put on the neighbor if we lose this qubit.
+    #     """
+    #     def add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit):
+    #         updated_error_qubit_indices = [i for i in error_qubit_indices if i in neighbors_by_order]
+    #         if updated_error_qubit_indices != error_qubit_indices:
+    #             stop=1
             
-            # apply the correlated noise channels:
-            if len(updated_error_qubit_indices) == 0:
-                pass
-            elif len(updated_error_qubit_indices) == 1: # single qubit channel
-                [neigh_qubit, error_type] = neighbors_by_order[updated_error_qubit_indices[0]]
-                error_channel = [probability,0,0] if error_type == 'X' else [0,0,probability]
-                circuit.append('PAULI_CHANNEL_1', [neigh_qubit],  error_channel)
-            elif len(updated_error_qubit_indices) == 2:
-                [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
-                [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
-                # two_qubit_error_type = f"{error_type0}{error_type1}" # can be XX,XZ,ZX,ZZ
-                circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1}')
-            elif len(updated_error_qubit_indices) == 3:
-                [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
-                [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
-                [neigh_qubit2, error_type2] = neighbors_by_order[updated_error_qubit_indices[2]]
-                circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1} {error_type2}{neigh_qubit2}')
-            elif len(updated_error_qubit_indices) == 4:
-                [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
-                [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
-                [neigh_qubit2, error_type2] = neighbors_by_order[updated_error_qubit_indices[2]]
-                [neigh_qubit3, error_type3] = neighbors_by_order[updated_error_qubit_indices[3]]
-                circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1} {error_type2}{neigh_qubit2} {error_type3}{neigh_qubit3}')
+    #         # apply the correlated noise channels:
+    #         if len(updated_error_qubit_indices) == 0:
+    #             pass
+    #         elif len(updated_error_qubit_indices) == 1: # single qubit channel
+    #             [neigh_qubit, error_type] = neighbors_by_order[updated_error_qubit_indices[0]]
+    #             error_channel = [probability,0,0] if error_type == 'X' else [0,0,probability]
+    #             circuit.append('PAULI_CHANNEL_1', [neigh_qubit],  error_channel)
+    #         elif len(updated_error_qubit_indices) == 2:
+    #             [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
+    #             [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
+    #             # two_qubit_error_type = f"{error_type0}{error_type1}" # can be XX,XZ,ZX,ZZ
+    #             circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1}')
+    #         elif len(updated_error_qubit_indices) == 3:
+    #             [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
+    #             [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
+    #             [neigh_qubit2, error_type2] = neighbors_by_order[updated_error_qubit_indices[2]]
+    #             circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1} {error_type2}{neigh_qubit2}')
+    #         elif len(updated_error_qubit_indices) == 4:
+    #             [neigh_qubit0, error_type0] = neighbors_by_order[updated_error_qubit_indices[0]]
+    #             [neigh_qubit1, error_type1] = neighbors_by_order[updated_error_qubit_indices[1]]
+    #             [neigh_qubit2, error_type2] = neighbors_by_order[updated_error_qubit_indices[2]]
+    #             [neigh_qubit3, error_type3] = neighbors_by_order[updated_error_qubit_indices[3]]
+    #             circuit += stim.Circuit(f'CORRELATED_ERROR({probability}) {error_type0}{neigh_qubit0} {error_type1}{neigh_qubit1} {error_type2}{neigh_qubit2} {error_type3}{neigh_qubit3}')
         
-        if lost_qubit == 3:
-            stop = 1
-        p = self.phys_error
-        last_gate_index = max(neighbors_by_order)
-        # Add error channels possible losses within the round or before according to mle logic:
-        if gate_order == 0:
-            # If we lose it after gate 0:
-            probability = p
-            error_qubit_indices = [1,2,3] if lost_qubit_type == 'data' else [0]
-            add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
-        elif gate_order == 1:
-            # If we lose it after gate 1:
-            probability = (1-p)*p
-            error_qubit_indices = [2,3] if lost_qubit_type == 'data' else [0,1]
-            add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
-        elif gate_order == 2:
-            # If we lose it after gate 2:
-            probability = p*((1-p)**2)
-            error_qubit_indices = [3] if lost_qubit_type == 'data' else [0,1,2] # can be [3]
-            add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
-        elif gate_order == 3: # no errors on neighbors
-            # If we lose it after gate 3:
-            probability = p*((1-p)**3)
-            error_qubit_indices = [] if lost_qubit_type == 'data' else [0,1,2,3] # can be []
-            add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
+    #     if lost_qubit == 3:
+    #         stop = 1
+    #     p = self.phys_error
+    #     last_gate_index = max(neighbors_by_order)
+    #     # Add error channels possible losses within the round or before according to mle logic:
+    #     if gate_order == 0:
+    #         # If we lose it after gate 0:
+    #         probability = p
+    #         error_qubit_indices = [1,2,3] if lost_qubit_type == 'data' else [0]
+    #         add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
+    #     elif gate_order == 1:
+    #         # If we lose it after gate 1:
+    #         probability = (1-p)*p
+    #         error_qubit_indices = [2,3] if lost_qubit_type == 'data' else [0,1]
+    #         add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
+    #     elif gate_order == 2:
+    #         # If we lose it after gate 2:
+    #         probability = p*((1-p)**2)
+    #         error_qubit_indices = [3] if lost_qubit_type == 'data' else [0,1,2] # can be [3]
+    #         add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
+    #     elif gate_order == 3: # no errors on neighbors
+    #         # If we lose it after gate 3:
+    #         probability = p*((1-p)**3)
+    #         error_qubit_indices = [] if lost_qubit_type == 'data' else [0,1,2,3] # can be []
+    #         add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
 
             
-        if gate_order == last_gate_index:
-            # Add loss channels for losses in previous QEC rounds:
-            loss_in_round_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
-            current_cycle_beginning = next((cycle[0] for cycle in self.qubit_lifecycles_and_losses[lost_qubit] if cycle[0] <= round_ix <= cycle[1]), None)
-            num_rounds_before = round_ix - current_cycle_beginning
-            if num_rounds_before > 0: # there is a possibility that we lost this qubit in a past round
-                logical_qubit =  self.logical_circuit.qubit_index_to_logical_qubit(lost_qubit)
-                qubit_type = 'data' if lost_qubit in logical_qubit.data_qubits else 'ancilla'
-                if qubit_type == 'data': # we need to add noise on neighbors if this qubit is now a data qubit
-                    error_qubit_indices = [0,1,2,3]
-                    probability = num_rounds_before * loss_in_round_prob
-                    add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
+    #     if gate_order == last_gate_index:
+    #         # Add loss channels for losses in previous QEC rounds:
+    #         loss_in_round_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
+    #         current_cycle_beginning = next((cycle[0] for cycle in self.qubit_lifecycles_and_losses[lost_qubit] if cycle[0] <= round_ix <= cycle[1]), None)
+    #         num_rounds_before = round_ix - current_cycle_beginning
+    #         if num_rounds_before > 0: # there is a possibility that we lost this qubit in a past round
+    #             logical_qubit =  self.logical_circuit.qubit_index_to_logical_qubit(lost_qubit)
+    #             qubit_type = 'data' if lost_qubit in logical_qubit.data_qubits else 'ancilla'
+    #             if qubit_type == 'data': # we need to add noise on neighbors if this qubit is now a data qubit
+    #                 error_qubit_indices = [0,1,2,3]
+    #                 probability = num_rounds_before * loss_in_round_prob
+    #                 add_error_channel_mle(neighbors_by_order, error_qubit_indices, probability, circuit)
         
         
         
 
-    def add_SWAP_neighbors_errors_ancilla_loss(self, cycle_length, circuit, ancilla_qubit_type, data_neigh_index):
-        p = self.phys_error
-        swap_error_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
-        error_channel = [swap_error_prob,0,0] if ancilla_qubit_type == 'Z' else [0,0,swap_error_prob]
-        circuit.append('PAULI_CHANNEL_1', [data_neigh_index],  error_channel)
+    # def add_SWAP_neighbors_errors_ancilla_loss(self, cycle_length, circuit, ancilla_qubit_type, data_neigh_index):
+    #     p = self.phys_error
+    #     swap_error_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
+    #     error_channel = [swap_error_prob,0,0] if ancilla_qubit_type == 'Z' else [0,0,swap_error_prob]
+    #     circuit.append('PAULI_CHANNEL_1', [data_neigh_index],  error_channel)
 
-    def add_SWAP_neighbors_errors(self, cycle_length, circuit, qubit):
-        p = self.phys_error
-        loss_in_round_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
-        error_channel = [loss_in_round_prob/3,loss_in_round_prob/3,loss_in_round_prob/3]
-        circuit.append('PAULI_CHANNEL_1', [qubit],  error_channel)
+    # def add_SWAP_neighbors_errors(self, cycle_length, circuit, qubit):
+    #     p = self.phys_error
+    #     loss_in_round_prob = p + (1-p)*p + p*((1-p)**2) + p*((1-p)**3)
+    #     error_channel = [loss_in_round_prob/3,loss_in_round_prob/3,loss_in_round_prob/3]
+    #     circuit.append('PAULI_CHANNEL_1', [qubit],  error_channel)
         
         
         

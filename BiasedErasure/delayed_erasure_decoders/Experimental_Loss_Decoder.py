@@ -30,7 +30,7 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
         cycles = int(Meta_params['cycles'])
-        Meta_params['LD_method'] = 'None'
+        # Meta_params['LD_method'] = 'None'
         
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=first_comb_weight,
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
@@ -60,14 +60,13 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
 
 
 
-def get_simulated_measurement_events(Meta_params, dx: int, dy: int, num_shots: int, noise_params: dict = {}, printing=False):
+def get_simulated_measurement_events(Meta_params, dx: int, dy: int, num_shots: int, noise_params: dict = {}):
 
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
         cycles = int(Meta_params['cycles'])
-        Meta_params['LD_method'] = 'None'
-        Meta_params['printing'] = str(printing)
+        # Meta_params['LD_method'] = 'None'
         
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=0.0,
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
@@ -80,13 +79,12 @@ def get_simulated_measurement_events(Meta_params, dx: int, dy: int, num_shots: i
 
         return measurement_events_all_shots, detection_events_all_shots, observable_flips_all_shots, LogicalCircuit
 
-def get_lossless_circuit(Meta_params, dx: int, dy: int, noise_params: dict = {}, printing=False):
+def get_lossless_circuit(Meta_params, dx: int, dy: int, noise_params: dict = {}):
         # Step 0 - generate the Simulator class:
         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
         cycles = int(Meta_params['cycles'])
-        Meta_params['LD_method'] = 'None'
-        Meta_params['printing'] = str(printing)
+        # Meta_params['LD_method'] = 'None'
         
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=0.0,
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
