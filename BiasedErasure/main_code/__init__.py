@@ -11,4 +11,6 @@ from . import xzzx_circuit
 from . import xzzx_cluster
 from . import xzzx_cluster_noisy
 from . import XZZX
+from . import config
+from . import circuit_generator 
 

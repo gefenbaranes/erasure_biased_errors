@@ -13,24 +13,14 @@ import itertools
 from collections import defaultdict
 import concurrent.futures
 from functools import partial
+from BiasedErasure.main_code.config import Config
 
 
 class MLE_Loss_Decoder:
-    def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, dx:int, dy:int, ancilla_qubits:list, data_qubits:list, 
-                loss_detection_freq=None, printing=False, output_dir=None, first_comb_weight=0.5, loss_detection_method_str='SWAP', 
-                 save_data_during_sim=False, n_r=1, circuit_type = '', use_independent_decoder=True, use_independent_and_first_comb_decoder=True, **kwargs) -> None:
-        self.Meta_params = Meta_params
-        self.bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
-        self.bloch_point_params = bloch_point_params
-        self.cycles = cycles
-        self.dx = dx
-        self.dy = dy
-        self.printing = printing
-        self.loss_detection_freq = loss_detection_freq
+    def __init__(self, ancilla_qubits:list, data_qubits:list, **kwargs) -> None:
+
         self.ancilla_qubits = ancilla_qubits
         self.data_qubits = data_qubits
-        self.circuit_type = circuit_type
-        self.n_r = n_r
         # self.lost_qubits_by_round_ix = {}  # {ld_round: [lost_qubits]}
         self.QEC_round_types = {}
         self.qubit_lifecycles_and_losses = {} # qubit: {[R_round, M_round, Lost?], [R_round, M_round, Lost?], ..}
@@ -42,20 +32,15 @@ class MLE_Loss_Decoder:
         # self.Pauli_DEM = None # detector error model for only Pauli errors
         self.real_losses_by_instruction_ix = {}
         if self.circuit_type == 'random_alg':
-            self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{cycles}__nr{n_r}"
+            self.loss_decoder_files_dir = f"{self.config.output_dir}/loss_circuits/{self.create_loss_file_name(self.config.Meta_params, self.config.bloch_point_params)}/dx_{self.config.dx}__dy_{self.config.dy}__c_{self.config.cycles}__nr{self.config.n_r}"
         else:
-            self.loss_decoder_files_dir = f"{output_dir}/loss_circuits/{self.create_loss_file_name(self.Meta_params, self.bloch_point_params)}/dx_{dx}__dy_{dy}__c_{cycles}"
+            self.loss_decoder_files_dir = f"{self.config.output_dir}/loss_circuits/{self.create_loss_file_name(self.config.Meta_params, self.config.bloch_point_params)}/dx_{self.config.dx}__dy_{self.config.dy}__c_{self.config.cycles}"
         
         # print(self.loss_decoder_files_dir)
         self.measurement_map = {}
         self.measurement_ix_to_ins_ix = {}
-        self.decoder_type = Meta_params['loss_decoder']
         self.loss_detection_method_str = loss_detection_method_str
         self.losses_to_detectors = []
-        self.first_comb_weight = first_comb_weight
-        self.save_data_during_sim = save_data_during_sim
-        self.use_independent_decoder = use_independent_decoder
-        self.use_independent_and_first_comb_decoder = use_independent_and_first_comb_decoder
         
     @property
     def circuit(self):
@@ -149,7 +134,7 @@ class MLE_Loss_Decoder:
         #     print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
         
         
-        # if self.decoder_type ==  'only_ssr': # takes into account SSR information only:
+        # if self.config.Meta_params['loss_decoder'] ==  'only_ssr': # takes into account SSR information only:
         #     full_filename_dems = f'{self.loss_decoder_files_dir}/dems_SSR_all_options.pickle'
         #     if not os.path.exists(full_filename_dems): # If needed - preprocess this circuit to get all relevant DEMs
         #         if self.printing:
@@ -214,7 +199,7 @@ class MLE_Loss_Decoder:
                 print(f"Using {self.loss_detection_method_str} method for {self.cycles} cycles and dx = {self.dx}, dy = {self.dy}, self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
             
         
-            if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
+            if len(self.config.Meta_params['loss_decoder']) >= 11 and self.config.Meta_params['loss_decoder'][:11] ==  'independent': # Independent decoder:
                 full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_1_losses.pickle'
                 if not os.path.exists(full_filename_dems): # If needed - preprocess this circuit to get all relevant DEMs
                     if self.printing:
@@ -232,7 +217,7 @@ class MLE_Loss_Decoder:
                         print(f"EOFError: {e}. The file {full_filename_dems} might be corrupted. Regenerating the file.")
                         self.preprocess_circuit(full_filename=full_filename_dems)
 
-            elif self.decoder_type == 'comb':
+            elif self.config.Meta_params['loss_decoder'] == 'comb':
                 self.circuit_comb_dems = {}
                 for num_of_losses in [1,2,3,4,5,6,7,8,9,10]: # number of losses in the combination # TODO: maybe change back to [1,2,3,4,5,6,7]
                     full_filename_dems = f'{self.loss_decoder_files_dir}/circuit_dems_{num_of_losses}_losses.pickle'
@@ -304,7 +289,7 @@ class MLE_Loss_Decoder:
 
             
             # Step 3 - choose a decoder type:
-            if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
+            if len(self.config.Meta_params['loss_decoder']) >= 11 and self.config.Meta_params['loss_decoder'][:11] ==  'independent': # Independent decoder:
                 final_dem = self.generate_all_DEMs_and_sum_over_independent_events(return_hyperedges_matrix=False)
             else:
                 # All combination decoder:
@@ -352,7 +337,7 @@ class MLE_Loss_Decoder:
             # print(f'Getting all potential loss locations according to SSR information took {time.time() - start_time:.5f}s')      
 
             # Step 3 - choose a decoder type:
-            if len(self.decoder_type) >= 11 and self.decoder_type[:11] ==  'independent': # Independent decoder:
+            if len(self.config.Meta_params['loss_decoder']) >= 11 and self.config.Meta_params['loss_decoder'][:11] ==  'independent': # Independent decoder:
                 start_time_ind = time.time()
                 final_dem_hyperedges_matrix = self.generate_all_DEMs_and_sum_over_independent_events(return_hyperedges_matrix=True)
                 # print(f'Summing over all relevant DEMs to generate the final DEM took {time.time() - start_time_ind:.5f}s')      
@@ -675,7 +660,7 @@ class MLE_Loss_Decoder:
                     if self.printing:
                         print(f"Starting QEC Round {round_ix}")
                     
-                    if (round_ix+1)%self.loss_detection_freq == 0:
+                    if (round_ix+1)%self.LD_freq == 0:
                         SWAP_round = True
                         SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
                         SWAP_round_index += 1
@@ -1944,13 +1929,13 @@ class MLE_Loss_Decoder:
                 open_new_lifecycles = False
                 data_qubits_active_cycle_index += 1
                 
-            if (round_ix+1)%self.loss_detection_freq == 0 or round_ix == max(self.rounds_by_ix.keys()): # close lifecycles. data loss detection round:
+            if (round_ix+1)%self.LD_freq == 0 or round_ix == max(self.rounds_by_ix.keys()): # close lifecycles. data loss detection round:
                 for data_q in self.data_qubits:
                     self.qubit_lifecycles_and_losses[data_q][data_qubits_active_cycle_index][1] = round_ix # Close the active cycle with the measurement round
                     open_new_lifecycles = True
                     
         # print(f"self.qubit_lifecycles_and_losses = {self.qubit_lifecycles_and_losses}")
-        # print(f"frequency = {self.loss_detection_freq}")
+        # print(f"frequency = {self.LD_freq}")
         
         
     def get_qubits_lifecycles_SWAP(self):
@@ -1987,7 +1972,7 @@ class MLE_Loss_Decoder:
                         round_ix += 1; first_QEC_round = False
                     if self.printing:
                         print(f"Starting QEC Round {round_ix}")
-                    if (round_ix+1)%self.loss_detection_freq == 0:
+                    if (round_ix+1)%self.LD_freq == 0:
                         SWAP_round = True
                         SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
                         SWAP_round_index += 1
@@ -2492,7 +2477,7 @@ class MLE_Loss_Decoder:
                     if self.printing:
                         print(f"Starting QEC Round {round_ix}")
                     
-                    if (round_ix+1)%self.loss_detection_freq == 0:
+                    if (round_ix+1)%self.LD_freq == 0:
                         SWAP_round = True
                         SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
                         SWAP_round_index += 1
