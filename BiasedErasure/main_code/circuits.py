@@ -16,7 +16,7 @@ from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircui
 
 def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
                                 logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = 0, measure_wrong_basis=False):
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = '0', measure_wrong_basis=False):
     """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part.
     If measure_wrong_basis = True: we are measuring in the opposite basis to initialization.
     """

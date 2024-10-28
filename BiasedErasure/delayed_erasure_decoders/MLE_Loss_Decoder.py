@@ -93,15 +93,25 @@ class MLE_Loss_Decoder:
             for ordering,replacement in zip(orderings_list,replacement_list):
                 ordering_string = ordering_string.replace(ordering,replacement)
 
+        #     if 'circuit_index' in Meta_params.keys():
+        #         return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}_circ_idx__{Meta_params['circuit_index']}"
+        #     else:
+        #         return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}"
+        # else:
+        #     if 'circuit_index' in Meta_params.keys():
+        #         return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}_circ_idx__{Meta_params['circuit_index']}"
+        #     else:
+        #         return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
             if 'circuit_index' in Meta_params.keys():
-                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}_circ_idx__{Meta_params['circuit_index']}"
+                # return f"{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}_circ_idx__{Meta_params['circuit_index']}"
+                return f"{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['is_erasure_biased']=='True')}__{Meta_params['LD_freq']}__{int(Meta_params['SSR']=='True')}__{Meta_params['LD_method']}__ordering_{ordering_string}_cidx_{Meta_params['circuit_index']}"
             else:
-                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{ordering_string}"
+                return f"{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['is_erasure_biased']=='True')}__{Meta_params['LD_freq']}__{int(Meta_params['SSR']=='True')}__{Meta_params['LD_method']}__ordering_{ordering_string}"
         else:
             if 'circuit_index' in Meta_params.keys():
-                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}_circ_idx__{Meta_params['circuit_index']}"
+                return f"{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['is_erasure_biased']=='True')}__{Meta_params['LD_freq']}__{int(Meta_params['SSR']=='True')}__{Meta_params['LD_method']}_cidx_{Meta_params['circuit_index']}"
             else:
-                return f"{Meta_params['architecture']}__{Meta_params['code']}__{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['bias_preserving_gates'] == 'True')}__{Meta_params['noise']}__{int(Meta_params['is_erasure_biased']=='True')}__LD_freq_{Meta_params['LD_freq']}__SSR_{int(Meta_params['SSR']=='True')}__LD_method_{Meta_params['LD_method']}__ordering_{Meta_params['ordering']}"
+                return f"{Meta_params['circuit_type']}__{Meta_params['num_logicals']}log__{Meta_params['logical_basis']}__{int(Meta_params['is_erasure_biased']=='True')}__{Meta_params['LD_freq']}__{int(Meta_params['SSR']=='True')}__{Meta_params['LD_method']}"
 
 
     def generate_loss_instruction_indices(self):
@@ -1392,8 +1402,8 @@ class MLE_Loss_Decoder:
                         
         Pauli_DEM = circuit_for_Pauli_dem.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True) # GB: new Oct24, allow_gauge_detectors = True to allow DEM generation when meas basis is wrong. 
         
-        # if self.printing:
-        print(f"Pauli_DEM inside the MLE_Loss_Decoder = {Pauli_DEM}")
+        if self.printing:
+            print(f"Pauli_DEM inside the MLE_Loss_Decoder = {Pauli_DEM}")
         # Convert the DEM into a matrix:
         hyperedges_matrix_Pauli_DEM = self.convert_dem_into_hyperedges_matrix(Pauli_DEM, observables_converted_to_detectors=True)
         hyperedges_matrix_Pauli_DEM = hyperedges_matrix_Pauli_DEM.tocsr()
