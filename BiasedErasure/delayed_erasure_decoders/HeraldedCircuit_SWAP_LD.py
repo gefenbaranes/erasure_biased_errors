@@ -45,7 +45,7 @@ class HeraldedCircuit_SWAP_LD:
         return loss_detector_ix
         
 
-    def insert_SWAP_operations(self, updated_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping):
+    def insert_SWAP_operations(self, updated_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping, movement_errors=True):
         qubits = set([q.value for q in updated_instruction.targets_copy()])
         logical_qubits = list(set([self.logical_circuit.qubit_index_to_logical_qubit(q) for q in qubits]))
         for logical_qubit in logical_qubits:
@@ -54,7 +54,8 @@ class HeraldedCircuit_SWAP_LD:
             # print(f"swap pairs = {swap_pairs}")
             flat_list = [qubit for pair in swap_pairs for qubit in pair]
             SWAP_circuit.append('SWAP', flat_list)
-            self.add_idling_channel(SWAP_circuit, sorted(list(logical_qubit.data_qubits) + list(logical_qubit.measure_qubits))) # Add SWAP movement errors
+            if movement_errors:
+                self.add_idling_channel(SWAP_circuit, sorted(list(logical_qubit.data_qubits) + list(logical_qubit.measure_qubits))) # Add SWAP movement errors
             # Update qubit_index_mapping based on the swap_pairs
             for pair in swap_pairs:
                 # pair is a set of 2 qubits, for example (8,0).
@@ -69,24 +70,27 @@ class HeraldedCircuit_SWAP_LD:
             
                             
                             
-    def transfer_circuit_into_SWAP_circuit(self, input_circuit):
+    def transfer_circuit_into_SWAP_circuit(self, input_circuit, movement_errors):
+        # New improvement October 2024: also change arrays input_circuit.potential_lost_qubits, input_circuit.loss_probabilities according to the SWAP
         # This function is called once for all shots, just the alter the original circuit with the SWAP operations.
         round_ix = -1
         inside_qec_round = False
         SWAP_round_index = 0
         SWAP_round_type = None
-        SWAP_circuit = stim.Circuit()
+        SWAP_circuit = input_circuit.create_empty_logical_circuit()
         first_QEC_round = True
-        insert_H_first = False
         updated_qubit_index_mapping = {i: i for i in self.ancilla_qubits + self.data_qubits}
         self.gates_ordering_dict = {}
         self.qubits_type_by_qec_round = {}
+        
+        loss_arrays_index = 0 # to update arrays input_circuit.potential_lost_qubits, input_circuit.loss_probabilities according to the SWAP
         
         for instruction in input_circuit:
             # Update SWAP relabeling:
             if instruction.name in ['DETECTOR', 'OBSERVABLE_INCLUDE']:
                 SWAP_circuit.append(instruction)
                 continue
+            
             updated_targets = []
             for q in instruction.targets_copy():
                 if isinstance(q, stim.GateTarget): # Update the qubit index if it's a non-negative value
@@ -94,7 +98,32 @@ class HeraldedCircuit_SWAP_LD:
                 else: # Keep the target as is for other cases
                     updated_targets.append(q)
             
-            
+            if instruction.name == 'I': # NEW PART: update the index in arrays input_circuit.potential_lost_qubits
+                # update input_circuit.potential_lost_qubits[start_index:end_index] array according to the updated_qubit_index_mapping array.
+                
+                num_qubits = len(instruction.targets_copy())
+                start_index = loss_arrays_index
+                end_index = loss_arrays_index + num_qubits
+                
+
+                # Extract the potential lost qubits for this identity operation
+                potential_lost_qubits_slice = input_circuit.potential_lost_qubits[start_index:end_index]
+                
+                # Create a new list to hold the updated qubits
+                updated_potential_lost_qubits = []
+                
+                for old_qubit_index in potential_lost_qubits_slice:
+                    # Map the old qubit index to the new one based on the SWAP operation
+                    new_qubit_index = updated_qubit_index_mapping[old_qubit_index]
+                    updated_potential_lost_qubits.append(new_qubit_index)
+                
+                # Replace the original slice in the input_circuit.potential_lost_qubits with the updated one
+                input_circuit.potential_lost_qubits[start_index:end_index] = updated_potential_lost_qubits
+                
+                # Update the loss_arrays_index for the next instruction
+                loss_arrays_index = end_index
+                
+                
             if instruction.name == 'MPP': # different way of updating the instruction:
                 new_logical_operator = []
                 for target in instruction.targets_copy():
@@ -116,6 +145,7 @@ class HeraldedCircuit_SWAP_LD:
             else:
                 updated_instruction = stim.CircuitInstruction(instruction.name, updated_targets, instruction.gate_args_copy())
                 SWAP_circuit.append(updated_instruction)
+                
 
             # QEC rounds:
             if updated_instruction.name == 'TICK':
@@ -125,16 +155,9 @@ class HeraldedCircuit_SWAP_LD:
                     CZ_round_ix = 0
                     self.gates_ordering_dict[round_ix] = {}
                     
-                    # self.qubits_type_by_qec_round[round_ix] = {}
-                    # for qubit in self.all_qubits:
-                    #     logical_qubit = self.logical_circuit.qubit_index_to_logical_qubit(qubit)
-                    #     qubit_type = 'data' if qubit in logical_qubit.data_qubits else 'ancilla'
-                    #     self.qubits_type_by_qec_round[round_ix][qubit] = qubit_type
-                        
                     if (round_ix+1)%self.loss_detection_freq == 0:
                         SWAP_round = True
-                        # SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                        # SWAP_round_index += 1
+                        
                     else:
                         SWAP_round = False
                 else: # end of round
@@ -144,49 +167,17 @@ class HeraldedCircuit_SWAP_LD:
                 inside_qec_round = not inside_qec_round
                 continue
             
-            if inside_qec_round: # TODO: first do the H and then do the SWAP things
+            if inside_qec_round: # using the trivial XX lines in the code, we first do the H and then do the SWAP things
                 if updated_instruction.name in ['CZ', 'CX']:
-                    # gate_type = updated_instruction.name
-                    
-                    # qubits = [q.value for q in updated_instruction.targets_copy()]
-                    # pairs = [(qubits[i], qubits[i + 1]) for i in range(0, len(qubits), 2)]
-                    # for (c,t) in pairs:
-                        # # if we lose c (control), the target will get the following error:
-                        # if gate_type == 'CZ':
-                        #     noise_type = 'Z'
-                        # elif gate_type == 'CX':
-                        #     noise_type = 'X'
-                        # if c not in self.gates_ordering_dict[round_ix].keys():
-                        #     self.gates_ordering_dict[round_ix][c] = {CZ_round_ix: [t,noise_type]}
-                        # else:
-                        #     self.gates_ordering_dict[round_ix][c][CZ_round_ix] = [t,noise_type]
-                            
-                        # # if we lose t (target), the control will get the following error:
-                        # if gate_type == 'CZ':
-                        #     noise_type = 'Z'
-                        # elif gate_type == 'CX':
-                        #     noise_type = 'Z'
-                        # if t not in self.gates_ordering_dict[round_ix].keys():
-                        #     self.gates_ordering_dict[round_ix][t] = {CZ_round_ix: [c,noise_type]}
-                        # else:
-                        #     self.gates_ordering_dict[round_ix][t][CZ_round_ix]= [c,noise_type]
                     CZ_round_ix += 1
                     
-                if (updated_instruction.name == 'I'): # implement SWAP when needed:
+                elif (updated_instruction.name == 'X'): # implement SWAP after the effective X pulses:
                     if SWAP_round and (CZ_round_ix == 4): # last entangling gates in the round, need to add QI and physical SWAPs
                         # if self.bias_preserving_gates:
                         SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-                        self.insert_SWAP_operations(updated_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping)
+                        self.insert_SWAP_operations(updated_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping, movement_errors=False)
                         SWAP_round_index += 1
-                        # else: # first need to insert the next instruction, H:
-                            # insert_H_first = True
-                            # I_instruction = updated_instruction
-                    # CZ_round_ix += 1
-                    
-                # if insert_H_first and (updated_instruction.name == 'H'):
-                #     insert_H_first = False
-                #     self.insert_SWAP_operations(I_instruction, SWAP_round_type, SWAP_circuit, updated_qubit_index_mapping)
-                            
+
             else:
                 pass
         return SWAP_circuit

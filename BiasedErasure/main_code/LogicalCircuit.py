@@ -119,19 +119,33 @@ class LogicalCircuit(stim.Circuit):
         self.measurement_loss_rate = measurement_loss_rate
 
         # If ancilla error rates aren't specified, default to the values of the data qubits (almost!)
+        # def set_ancilla_rate(ancilla_rate, data_rate):
+        #     if ancilla_rate is None or np.array_equal(ancilla_rate, data_rate):
+        #         if isinstance(data_rate, (tuple, list)):
+        #             return tuple(x + 1e-10 for x in data_rate)
+        #         elif isinstance(data_rate, (float, np.float64)):
+        #             return data_rate + 1e-10
+        #         elif isinstance(data_rate, np.ndarray):
+        #             return data_rate + 1e-10
+        #         else:
+        #             raise TypeError("Unsupported data_rate type. Expected tuple, list, float, or numpy array.")
+        #     else:
+        #         return ancilla_rate
+
+        # If ancilla error rates aren't specified, default to the values of the data qubits
         def set_ancilla_rate(ancilla_rate, data_rate):
             if ancilla_rate is None or np.array_equal(ancilla_rate, data_rate):
                 if isinstance(data_rate, (tuple, list)):
-                    return tuple(x + 1e-10 for x in data_rate)
+                    return tuple(x  for x in data_rate)
                 elif isinstance(data_rate, (float, np.float64)):
-                    return data_rate + 1e-10
+                    return data_rate 
                 elif isinstance(data_rate, np.ndarray):
-                    return data_rate + 1e-10
+                    return data_rate 
                 else:
                     raise TypeError("Unsupported data_rate type. Expected tuple, list, float, or numpy array.")
             else:
                 return ancilla_rate
-
+            
         self.ancilla_idle_loss_rate = set_ancilla_rate(ancilla_idle_loss_rate, self.idle_loss_rate)
         self.ancilla_idle_error_rate = set_ancilla_rate(ancilla_idle_error_rate, self.idle_error_rate)
         self.ancilla_reset_loss_rate = set_ancilla_rate(ancilla_reset_loss_rate, self.reset_loss_rate)
@@ -766,3 +780,82 @@ class LogicalCircuit(stim.Circuit):
 
     def copy(self, memodict={}):
         return copy.deepcopy(self, memo=memodict)
+
+
+    # def create_empty_logical_circuit(self):
+    #     """Creates a new empty LogicalCircuit with the same attributes but no instructions.
+    #     GB - new function Oct 24 for SWAP"""
+    #     # Create a new LogicalCircuit instance with all attributes copied over, but without instructions
+    #     empty_circuit = LogicalCircuit(
+    #         logical_qubits=self.logical_qubits,
+    #         gate_noise=self.gate_noise,
+    #         idle_noise=self.idle_noise,
+    #         idle_noise_scale_factor=self.idle_noise_scale_factor,
+    #         gate_noise_scale_factor=self.gate_noise_scale_factor,
+    #         loss_noise_scale_factor=self.loss_noise_scale_factor,
+    #         spam_noise_scale_factor=self.spam_noise_scale_factor,
+    #         idle_loss_rate=self.idle_loss_rate,
+    #         idle_error_rate=self.idle_error_rate,
+    #         entangling_zone_error_rate=self.entangling_zone_error_rate,
+    #         entangling_gate_error_rate=self.entangling_gate_error_rate,
+    #         erasure_ratio=self.erasure_ratio,
+    #         entangling_gate_loss_rate=self.entangling_gate_loss_rate,
+    #         single_qubit_loss_rate=self.single_qubit_loss_rate,
+    #         single_qubit_error_rate=self.single_qubit_error_rate,
+    #         reset_error_rate=self.reset_error_rate,
+    #         measurement_error_rate=self.measurement_error_rate,
+    #         reset_loss_rate=self.reset_loss_rate,
+    #         initialize_circuit=False,  # No initial circuit instructions
+    #         atom_array_sim=self.atom_array_sims
+    #     )
+        
+    #     # Copy over other arrays or any additional attributes as needed
+    #     empty_circuit.potential_lost_qubits = np.copy(self.potential_lost_qubits)
+    #     empty_circuit.loss_probabilities = np.copy(self.loss_probabilities)
+        
+    #     return empty_circuit
+    
+    
+    
+    def create_empty_logical_circuit(self) -> 'LogicalCircuit':
+        """Create a deep copy of the LogicalCircuit instance, including all attributes. stim circuit is empty.
+        GB - new function Oct 24 for SWAP
+        """
+        # Create a new instance without calling __init__
+        copied_circuit = self.__class__.__new__(self.__class__)
+        
+        # Shallow copy non-picklable items manually if necessary, deep copy others
+        for attr_name, attr_value in self.__dict__.items():
+            try:
+                setattr(copied_circuit, attr_name, copy.deepcopy(attr_value))
+            except TypeError:
+                # For unpicklable objects, use a shallow copy instead
+                setattr(copied_circuit, attr_name, attr_value)
+        
+        return copied_circuit
+
+    def full_copy(self) -> 'LogicalCircuit':
+        """Create a full deep copy of the LogicalCircuit instance, including all stim.Circuit instructions.
+        GB: new function, built for lattice surgery decoding."""
+        # Create a new instance without calling __init__
+        copied_circuit = self.__class__.__new__(self.__class__)
+        
+        # Start by copying the stim.Circuit base
+        super(LogicalCircuit, copied_circuit).__init__()
+        copied_circuit += self.copy()  # Copy the stim.Circuit instructions
+
+        # Deep copy each attribute, handling stim.Circuit objects separately
+        for attr_name, attr_value in self.__dict__.items():
+            if attr_name == "_without_loss":  # Example of copying any existing stim.Circuit
+                setattr(copied_circuit, attr_name, attr_value.copy())
+            elif isinstance(attr_value, stim.Circuit):
+                # Use the stim.Circuit's native copy method for copying instructions
+                setattr(copied_circuit, attr_name, attr_value.copy())
+            else:
+                try:
+                    setattr(copied_circuit, attr_name, copy.deepcopy(attr_value))
+                except TypeError:
+                    # For unpicklable objects, use a shallow copy instead
+                    setattr(copied_circuit, attr_name, attr_value)
+
+        return copied_circuit

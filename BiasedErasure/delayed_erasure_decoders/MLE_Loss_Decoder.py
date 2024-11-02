@@ -18,7 +18,7 @@ from functools import partial
 class MLE_Loss_Decoder:
     def __init__(self, Meta_params:dict, bloch_point_params: dict, cycles: int, dx:int, dy:int, ancilla_qubits:list, data_qubits:list, 
                 loss_detection_freq=None, printing=False, output_dir=None, first_comb_weight=0.5, loss_detection_method_str='SWAP', 
-                 save_data_during_sim=False, n_r=1, circuit_type = '', use_independent_decoder=True, use_independent_and_first_comb_decoder=True, **kwargs) -> None:
+                 save_data_during_sim=False, n_r=1, circuit_type = '', use_independent_decoder=True, use_independent_and_first_comb_decoder=False, **kwargs) -> None:
         self.Meta_params = Meta_params
         self.bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
         self.bloch_point_params = bloch_point_params
@@ -54,8 +54,8 @@ class MLE_Loss_Decoder:
         self.losses_to_detectors = []
         self.first_comb_weight = first_comb_weight
         self.save_data_during_sim = save_data_during_sim
-        self.use_independent_decoder = use_independent_decoder
-        self.use_independent_and_first_comb_decoder = use_independent_and_first_comb_decoder
+        self.use_independent_decoder = use_independent_decoder # TODO: improve it and put it as MetaParam only, remove this variable
+        self.use_independent_and_first_comb_decoder = use_independent_and_first_comb_decoder # TODO: improve it and put it as MetaParam only, remove this variable
         
     @property
     def circuit(self):
@@ -527,7 +527,8 @@ class MLE_Loss_Decoder:
                     for qubit in targets:
                         self.measurement_map[measurement_index] = (qubit, round_index)
                         measurement_index += 1
-        print(f"final measurement_index = {measurement_index}")
+        if self.printing:
+            print(f"\ngenerated a measurement map for a circuit with final measurement_index = {measurement_index}")
         
     def generate_measurement_ix_to_instruction_ix_map(self):
         # Build a mapping from measurement indices to qubits and measurement rounds. 
@@ -989,8 +990,8 @@ class MLE_Loss_Decoder:
             DEMs_specific_loss_event = []
             Probs_specific_loss_event = [] # GB: new
             total_probability = sum(self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)][potential_loss_ix][0] for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]) # CHECK
-            if total_probability == 0:
-                stop=1
+            # if total_probability == 0:
+            #     stop=1
             # start_time_loop = time.time()
             for potential_loss_ix in self.potential_losses_by_instruction_index[(lost_q, detection_round_ix)]:
                 

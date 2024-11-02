@@ -33,7 +33,9 @@ class Simulator:
                 first_comb_weight=0.5,
                 dont_use_loss_decoder=False,
                 save_data_during_sim = False,
-                n_r = 1
+                n_r = 1,
+                use_independent_decoder=True,
+                use_independent_and_first_comb_decoder=False
                 ) -> None:
         """
         Initialize the Simulator.
@@ -70,10 +72,24 @@ class Simulator:
         self.output_dir = output_dir
         self.save_filename = save_filename
         self.first_comb_weight = first_comb_weight
-        self.dont_use_loss_decoder = dont_use_loss_decoder # if TRUE, we are not using loss decoder at all. all shots get same DEM.
         self.save_data_during_sim = save_data_during_sim
         self.n_r = Meta_params['n_r'] # num of rounds before a QEC round
+        
+        ### loss decoder type:
+        self.dont_use_loss_decoder = dont_use_loss_decoder # if TRUE, we are not using loss decoder at all. all shots get same DEM.
+        self.use_independent_decoder = use_independent_decoder
+        self.use_independent_and_first_comb_decoder = use_independent_and_first_comb_decoder
+        # TODO: define these params like this instead of variables input here.. (next version of code!)
+        # self.use_independent_decoder = True if self.loss_decoder == 'independent' else False
+        # self.use_independent_and_first_comb_decoder = True if self.loss_decoder == 'first_comb' else False
+        # self.dont_use_loss_decoder = True if self.loss_decoder == 'None' else True
 
+
+        self.xzzx = True if atom_array_sim else False
+        self.replace_H_Ry = True if atom_array_sim else False
+
+
+        # self.replace_H_Ry = False # debug
 
         ### Circuit type to use
         self.circuit_index = str(Meta_params['circuit_index']) if 'circuit_index' in Meta_params.keys() else '0'
@@ -88,7 +104,7 @@ class Simulator:
         return None  # or raise an error if the job ID is critical
 
 
-    def generate_circuit(self, dx, dy, cycles, phys_err, replace_H_Ry=False, xzzx=False, noise_params={}):
+    def generate_circuit(self, dx, dy, cycles, phys_err, noise_params={}):
         entangling_gate_error_rate, entangling_gate_loss_rate = self.noise(phys_err, self.bias_ratio)
         if self.circuit_type in ['memory', 'memory_wrong']:
             measure_wrong_basis = True if self.circuit_type == 'memory_wrong' else False
@@ -99,7 +115,7 @@ class Simulator:
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
-                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, circuit_index = self.circuit_index, measure_wrong_basis = measure_wrong_basis)
+                                                replace_H_Ry=self.replace_H_Ry, xzzx=self.xzzx, noise_params=noise_params, circuit_index = self.circuit_index, measure_wrong_basis = measure_wrong_basis)
                 
                 # return memory_experiment_surface(dx=dx, dy=dy, code=self.code, QEC_cycles=cycles-1, entangling_gate_error_rate=entangling_gate_error_rate, 
                 #                                 entangling_gate_loss_rate=entangling_gate_loss_rate, erasure_ratio = self.erasure_ratio,
@@ -114,7 +130,8 @@ class Simulator:
                                                 biased_pres_gates = self.bias_preserving_gates, atom_array_sim=self.atom_array_sim)
                 
             elif self.circuit_type == 'random_alg':
-                return random_logical_algorithm(code=self.code, num_logicals = self.num_logicals, depth=self.cycles+1, distance=d, n_r = self.n_r, bias_ratio = self.bias_ratio, erasure_ratio = self.erasure_ratio, phys_err = phys_err, output_dir = self.output_dir)
+                assert dx==dy
+                return random_logical_algorithm(code=self.code, num_logicals = self.num_logicals, depth=self.cycles+1, distance=dx, n_r = self.n_r, bias_ratio = self.bias_ratio, erasure_ratio = self.erasure_ratio, phys_err = phys_err, output_dir = self.output_dir)
         
         
         elif self.circuit_type[:10] == 'logical_CX':
@@ -127,8 +144,18 @@ class Simulator:
                                                 biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
                                                 loss_detection_method = self.loss_detection_method_str, 
                                                 loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
-                                                replace_H_Ry=replace_H_Ry, xzzx=xzzx, noise_params=noise_params, printing=self.printing, circuit_index = self.circuit_index )
-                
+                                                replace_H_Ry=self.replace_H_Ry, xzzx=self.xzzx, noise_params=noise_params, printing=self.printing, circuit_index = self.circuit_index )
+        
+        elif self.circuit_type == 'lattice_surgery':
+            self.num_logicals = 1
+            return lattice_surgery_experiment_surface(dx=dx, dy=dy, code=self.code, num_layers=self.cycles,
+                                                logical_basis=self.logical_basis, 
+                                                biased_pres_gates = self.bias_preserving_gates, ordering = self.ordering_type,
+                                                loss_detection_method = self.loss_detection_method_str, 
+                                                loss_detection_frequency = self.loss_detection_freq, atom_array_sim=self.atom_array_sim, 
+                                                replace_H_Ry=self.replace_H_Ry, xzzx=self.xzzx, noise_params=noise_params, printing=self.printing, circuit_index = self.circuit_index )
+        
+            
                 
         elif self.circuit_type in ['GHZ_all_o1', 'GHZ_save_o1','GHZ_all_o2', 'GHZ_save_o2']:
             order_1 = []
@@ -175,7 +202,7 @@ class Simulator:
     
     def get_detections_from_experimental_data(self, dx: int, dy: int, measurement_events: np.ndarray, noise_params:dict):
         # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
 
         # Step 2 - get observables flips from lossless circuit
         detection_events, observable_flips = self.get_detection_events_from_measurements(measurement_events, LogicalCircuit)
@@ -184,7 +211,7 @@ class Simulator:
     
     
     
-    def initialize_loss_decoder_class(self, circuit, dx: int, dy: int, use_independent_decoder:bool):
+    def initialize_loss_decoder_class(self, circuit, dx: int, dy: int):
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in circuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in circuit.logical_qubits[i].data_qubits]
         
@@ -194,34 +221,36 @@ class Simulator:
                                                 cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq,
                                                 output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
                                                 save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type,
-                                                use_independent_decoder=use_independent_decoder, first_comb_weight=self.first_comb_weight,
-                                                use_independent_and_first_comb_decoder=False)
+                                                use_independent_decoder=self.use_independent_decoder, first_comb_weight=self.first_comb_weight,
+                                                use_independent_and_first_comb_decoder=self.use_independent_and_first_comb_decoder)
         
-        if self.loss_detection_method_str == 'SWAP':
-            loss_detection_class = self.heralded_circuit(circuit=circuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
-                                                                    basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
-                                                                    phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                                    SSR=self.SSR, cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq)
-            SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(circuit)
-            if self.printing:
-                print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
-            loss_detection_class.SWAP_circuit = SWAP_circuit
-            MLE_Loss_Decoder_class.circuit = SWAP_circuit
+        MLE_Loss_Decoder_class.circuit = circuit
         
-        elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
-            MLE_Loss_Decoder_class.circuit = circuit
+        # if self.loss_detection_method_str == 'SWAP':
+        #     loss_detection_class = self.heralded_circuit(circuit=circuit, biased_erasure=self.is_erasure_biased, bias_preserving_gates=self.bias_preserving_gates,
+        #                                                             basis = self.logical_basis, erasure_ratio = self.erasure_ratio, 
+        #                                                             phys_error = None, ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
+        #                                                             SSR=self.SSR, cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq)
+        #     SWAP_circuit = loss_detection_class.transfer_circuit_into_SWAP_circuit(circuit, movement_errors=True)
+        #     if self.printing:
+        #         print(f"Logical circuit after implementing SWAP is: \n {SWAP_circuit}\n")
+        #     loss_detection_class.SWAP_circuit = SWAP_circuit
+        #     MLE_Loss_Decoder_class.circuit = SWAP_circuit
         
-        if self.printing:
-            print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
-            print(f"len potential_lost_qubits: {len(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
-            print(f"potential_lost_qubits: {list(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
-            print(f"loss_probabilities: {MLE_Loss_Decoder_class.circuit.loss_probabilities}")
+        # elif self.loss_detection_method_str in ['FREE', 'MBQC', 'None']:
+        #     MLE_Loss_Decoder_class.circuit = circuit
+        
+        # if self.printing:
+        #     print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+        #     print(f"len potential_lost_qubits: {len(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
+            # print(f"potential_lost_qubits: {list(MLE_Loss_Decoder_class.circuit.potential_lost_qubits)}")
+            # print(f"loss_probabilities: {MLE_Loss_Decoder_class.circuit.loss_probabilities}")
             
         return MLE_Loss_Decoder_class
         
     
     def generate_logical_circuit(self, dx: int, dy: int, noise_params={}):
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
         return LogicalCircuit
         
     
@@ -230,14 +259,17 @@ class Simulator:
         """
         
         if circuit is None:
-            LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True, noise_params=noise_params)
+            if self.circuit_type == 'lattice_surgery' and self.logical_basis == 'ZZ':
+                PartialCircuit, LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
+            else:
+                LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
         else:
             LogicalCircuit = circuit
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
         
         
-        MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy, use_independent_decoder=True)
+        MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy)
 
         loss_detection_events_all_shots = np.random.rand(num_shots, len(LogicalCircuit.potential_lost_qubits)) < LogicalCircuit.loss_probabilities # sample losses according to the circuit
 
@@ -262,9 +294,9 @@ class Simulator:
                 measurement_events_all_shots.extend(measurement_events)
                 observable_flips_all_shots.extend(observable_flip[0])
                 
-                if self.printing:
-                    # print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
-                    print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
+                # if self.printing:
+                #     print(f"sampling for the following loss pattern: {np.where(loss_detection_events)[0]}")
+                #     print(f"{MLE_Loss_Decoder_class.real_losses_by_instruction_ix}")
                     # final_loss_circuit = MLE_Loss_Decoder_class.observables_to_detectors(experimental_circuit)
                     # final_dem = final_loss_circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True)        
                     # print(f"dem for the lossy circuit = {final_dem}")
@@ -335,40 +367,19 @@ class Simulator:
             detection_events = detection_events_flipped.astype(np.bool_)
         return detection_events
     
-    
-    
-    def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, 
-                                        use_loss_decoding=True, use_independent_decoder=True, use_independent_and_first_comb_decoder=True, noise_params={}, logical_gap = False):
-        """This function decodes the loss information using mle. 
-        Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
-        We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
-        Input: Meta_params, dx, dy, num shots, experimental data: detector shots.
-        Output: final DEM, corrections, num errors.
+    def decode_circuit(self, LogicalCircuit, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, 
+                                        noise_params={}, logical_gap = False):
         
-        Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': 'X', 'bias_preserving_gates': 'False', 
-                'noise': 'atom_array', 'is_erasure_biased': 'False', 'LD_freq': '1', 'LD_method': 'SWAP', 'SSR': 'True', 'cycles': '2', 'ordering': 'bad', 'decoder': 'MLE',
-                'circuit_type': 'memory', 'printing': 'False', 'num_logicals': '1'}
-        ordering: bad or fowler (good)
-        decoder: MLE or MWPM
-        
-        """
-        xzzx = True
-        
-        # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=xzzx, noise_params=noise_params) # real experimental circuit with the added pulses
-        MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy, use_independent_decoder)
+        MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy)
 
-        if self.printing:
-            print(f"circuit used for simulation is: {MLE_Loss_Decoder_class.circuit}")
-            
-        if 2 in measurement_events and use_loss_decoding:
+        if 2 in measurement_events and (not self.dont_use_loss_decoder):
             
             start_time = time.time()
             MLE_Loss_Decoder_class.initialize_loss_decoder() # this part can be improved to be a bit faster
             if self.printing:
                 print(f'Decoder initialized, it took {time.time() - start_time:.2f}s for everything')      
             
-            type = 'independent' if use_independent_decoder else 'ssr'
+            type = 'independent' if self.use_independent_decoder else 'ssr'
             dems_list, probs_lists, observables_errors_interactions_lists = self.generate_dems_loss_decoders(measurement_events, num_shots, type, MLE_Loss_Decoder_class)
             
             detection_events, observable_flips = self.get_detection_events_from_measurements(measurement_events, LogicalCircuit)
@@ -421,7 +432,7 @@ class Simulator:
         
 
         
-        else: # no loss in the experiment --> regular decoding, without delayed erasure decoder
+        else: # no loss in the experiment or not using the delayed-erasure decoder --> regular decoding, without delayed erasure decoder
             detection_events, observable_flips = self.get_detection_events_from_measurements(measurement_events, LogicalCircuit)
             detection_events = self.normalize_detection_events(detection_events, detection_events_signs) ### ADDED BACK IN 2024/08/20 BY SG ###
             
@@ -431,11 +442,13 @@ class Simulator:
             
             else:
                 if self.decoder == "MLE":
-                    if self.circuit_type == 'memory_wrong': # we need to first convert observables to detectors, get dem, and reconvert back.
+                    if self.circuit_type == 'memory_wrong' or (self.circuit_type == 'lattice_surgery' and self.logical_basis == 'ZZ'): # we need to first convert observables to detectors, get dem, and reconvert back.
                         MLE_Loss_Decoder_class.set_up_Pauli_DEM()
                         detector_error_model = MLE_Loss_Decoder_class.from_hyperedges_matrix_into_stim_dem(MLE_Loss_Decoder_class.Pauli_DEM_matrix)
                     else:
                         detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=False)
+                        # detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=False, approximate_disjoint_errors=True, ignore_decomposition_failures=True, allow_gauge_detectors=True) # debug
+                        print(detector_error_model) # debug
                     predictions = qec.correlated_decoders.mle.decode_gurobi_with_dem(dem=detector_error_model, detector_shots = detection_events)
                 else:
                     detector_error_model = MLE_Loss_Decoder_class.circuit.detector_error_model(decompose_errors=True, approximate_disjoint_errors=True, ignore_decomposition_failures=True) 
@@ -449,6 +462,83 @@ class Simulator:
                     num_errors = np.sum(np.logical_xor(observable_flips, predictions))
                     print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
                 return predictions, observable_flips, detector_error_model
+
+
+    def count_logical_errors_lattice_surgery(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, 
+                                        noise_params, logical_gap):
+        
+        PartialCircuit, FullCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
+        
+        if self.printing:
+            print(f"circuit used for lattice surgery simulations are: \n{LogicalCircuit}")
+            print(f"PartialCircuit: \n{PartialCircuit}")
+            print(f"FullCircuit: \n{FullCircuit}")
+        
+        
+        
+        PartialMeasurements = measurement_events[:, :PartialCircuit.num_measurements] 
+        
+        if logical_gap:
+            self.Meta_params['circuit_type'] = 'lattice_surgery_full'
+            Full_predictions, Full_log_probabilities, Full_observable_flips, Full_dems_list = self.decode_circuit(LogicalCircuit=FullCircuit, num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                        noise_params=noise_params)
+            self.Meta_params['circuit_type'] = 'lattice_surgery_partial'
+
+            Partial_predictions, Partial_log_probabilities, Partial_observable_flips, Partial_dems_list = self.decode_circuit(LogicalCircuit=PartialCircuit, num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = PartialMeasurements, detection_events_signs=detection_events_signs,
+                                                        noise_params=noise_params)
+            self.Meta_params['circuit_type'] = 'lattice_surgery'
+
+            return Partial_predictions, Partial_log_probabilities, Partial_observable_flips, Partial_dems_list, Full_predictions, Full_log_probabilities, Full_observable_flips, Full_dems_list
+            
+        else:
+            self.Meta_params['circuit_type'] = 'lattice_surgery_full'
+            Full_predictions, Full_observable_flips, Full_dems_list = self.decode_circuit(LogicalCircuit=FullCircuit, num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                        noise_params=noise_params)
+            self.Meta_params['circuit_type'] = 'lattice_surgery_partial'
+            Partial_predictions, Partial_observable_flips, Partial_dems_list = self.decode_circuit(LogicalCircuit=PartialCircuit, num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = PartialMeasurements, detection_events_signs=detection_events_signs,
+                                                        noise_params=noise_params)
+            self.Meta_params['circuit_type'] = 'lattice_surgery'
+
+            
+
+            return Partial_predictions, Partial_observable_flips, Partial_dems_list, Full_predictions, Full_observable_flips, Full_dems_list
+            
+    def count_logical_errors_experiment(self, num_shots: int, dx: int, dy: int, measurement_events: np.ndarray, detection_events_signs: np.ndarray, 
+                                        noise_params, logical_gap):
+        """This function decodes the loss information using mle. 
+        Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
+        We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
+        Input: Meta_params, dx, dy, num shots, experimental data: detector shots.
+        Output: final DEM, corrections, num errors.
+        
+        Meta_params = {'architecture': 'CBQC', 'code': 'Rotated_Surface', 'logical_basis': 'X', 'bias_preserving_gates': 'False', 
+                'noise': 'atom_array', 'is_erasure_biased': 'False', 'LD_freq': '1', 'LD_method': 'SWAP', 'SSR': 'True', 'cycles': '2', 'ordering': 'bad', 'decoder': 'MLE',
+                'circuit_type': 'memory', 'printing': 'False', 'num_logicals': '1'}
+        ordering: bad or fowler (good)
+        decoder: MLE or MWPM
+        
+        """
+        # Step 1 - generate the experimental circuit in our simulation:
+        if self.circuit_type == 'lattice_surgery' and self.logical_basis == 'ZZ':
+            return self.count_logical_errors_lattice_surgery(num_shots = num_shots, dx = dx, dy = dy,
+                                                        measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                        noise_params=noise_params, logical_gap=logical_gap)
+        else:
+            LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
+                
+            # LogicalCircuit.logical_qubits[0].visualize_code()
+        
+            if self.printing:
+                print(f"Circuit used for simulation is: \n{LogicalCircuit}")
+            
+            return self.decode_circuit(LogicalCircuit=LogicalCircuit, num_shots = num_shots, dx = dx, dy = dy,
+                                                            measurement_events = measurement_events, detection_events_signs=detection_events_signs,
+                                                            noise_params=noise_params, logical_gap=logical_gap)
+
 
 
 
@@ -468,7 +558,7 @@ class Simulator:
         """
         
         # Step 1 - generate the experimental circuit in our simulation:
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
+        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
         
         ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
         data_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].data_qubits]
@@ -478,7 +568,7 @@ class Simulator:
         MLE_Loss_Decoder_class = MLE_Loss_Decoder(Meta_params=self.Meta_params, bloch_point_params=self.bloch_point_params, 
                                                 dx = dx, dy = dy, loss_detection_method_str=self.loss_detection_method_str,
                                                 ancilla_qubits=ancilla_qubits, data_qubits=data_qubits,
-                                                cycles=self.cycles, printing=self.printing, loss_detection_freq = self.loss_detection_freq,
+                                                cycles=self.cycles, printing=False, loss_detection_freq = self.loss_detection_freq,
                                                 output_dir = self.output_dir, decoder_type=self.loss_decoder_type,
                                                 save_data_during_sim=self.save_data_during_sim, n_r=self.n_r, circuit_type=self.circuit_type)
         
@@ -486,8 +576,8 @@ class Simulator:
         MLE_Loss_Decoder_class.circuit = LogicalCircuit
         MLE_Loss_Decoder_class.generate_measurement_ix_to_instruction_ix_map() # mapping between measurement events to instruction ix
         
-        if self.printing:
-            print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
+        # if self.printing:
+        #     print(f"Logical circuit that will be used: \n{MLE_Loss_Decoder_class.circuit}")
             
         if 2 in measurement_events:
             loss_sampling = 1 # how many times we will use the same loss sampling result
@@ -523,19 +613,23 @@ class Simulator:
         else: # regular decoding, without delayed erasure decoder
             detection_events, observable_flips = self.get_detection_events_from_measurements(measurement_events, LogicalCircuit)
             detection_events = self.normalize_detection_events(detection_events, detection_events_signs)
-
-
             return dems_list, detection_events, observable_flips
         
         
-    def get_detection_events(self, dx: int, dy: int, measurement_events: np.ndarray):
+    def get_detection_events(self, dx: int, dy: int, measurement_events: np.ndarray, noise_params, circuit=None):
         """This function generates the circuit, takes the measurement events and generates the detection events.
         """
-        
-        LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
+        if circuit is None:
+            if self.circuit_type == 'lattice_surgery' and self.logical_basis == 'ZZ':
+                PartialCircuit, LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
+            else:
+                LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, noise_params=noise_params)
+        else:
+            LogicalCircuit = circuit
+            
+        # LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
         # MLE_Loss_Decoder_class = self.initialize_loss_decoder_class(LogicalCircuit, dx, dy)
         # MLE_Loss_Decoder_class.generate_measurement_ix_to_instruction_ix_map() # mapping between measurement events to instruction ix
-        
         detection_events, observable_flips = self.get_detection_events_from_measurements(measurement_events, LogicalCircuit)
 
         return detection_events, observable_flips
@@ -544,7 +638,7 @@ class Simulator:
         
     # def comb_preprocessing(self, dx: int, dy: int, num_of_losses: int, batch_index: int):
     #     # Generate the logical circuit
-    #     LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True, xzzx=True)
+    #     LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None)
         
     #     # Identify qubits
     #     ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in LogicalCircuit.logical_qubits[i].measure_qubits]
@@ -884,12 +978,11 @@ class Simulator:
 
     #     # Step 1 - generate the experimental circuit in our simulation:
     #     start_time = time.time()
-    #     LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=True,
-    #                                         xzzx=True,
+    #     LogicalCircuit = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None,
     #                                         noise_params=noise_params)  # real experimental circuit with the added pulses
 
     #     print(f"generating the Logical circuit took: {time.time() - start_time:.6f}s")
-    #     # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None, replace_H_Ry=False, xzzx=True) # vanilla circuit, no pulses, regular surface code
+    #     # LogicalCircuit_no_pulses = self.generate_circuit(dx=dx, dy=dy, cycles=self.cycles, phys_err=None) # vanilla circuit, no pulses, regular surface code
 
     #     ancilla_qubits = [qubit for i in range(self.num_logicals) for qubit in
     #                     LogicalCircuit.logical_qubits[i].measure_qubits]

@@ -14,20 +14,10 @@ from BiasedErasure.main_code.LogicalCircuitMBQC import LogicalCircuitMBQC
 from BiasedErasure.main_code.LogicalCircuit import LogicalCircuit 
 from BiasedErasure.main_code.GenerateLogicalCircuit import GenerateLogicalCircuit
 
-def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
-                                logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
-                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = '0', measure_wrong_basis=False):
-    """ This circuit simulated 1 logical qubits, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part.
-    If measure_wrong_basis = True: we are measuring in the opposite basis to initialization.
-    """
-    assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
-    
-    if printing:
-        print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
-    
-    
-    
-    ### Added by SG to allow different orderings for different rounds
+############### Helper functions: ###############
+
+def organize_ordering_array(ordering, QEC_cycles, printing=False):
+    ### Allow different orderings for different rounds
     if (type(ordering) is list) or (type(ordering) is np.ndarray):
         if len(ordering) != QEC_cycles:
             ordering = [ordering[0]]*QEC_cycles
@@ -40,7 +30,56 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         ordering = [ordering]*QEC_cycles
         if printing:
             print(f"Using orderings: {ordering}")
-    ####
+    
+    return ordering
+
+
+def add_QEC_rounds(lc, logical_qubits, QEC_cycles, loss_detection_method, atom_array_sim, loss_detection_frequency, xzzx, ordering, biased_pres_gates, logical_basis):
+    # QEC rounds:
+    start_time = time.time()
+    SWAP_round_index = 0
+    for round_ix in range(QEC_cycles):
+        SWAP_round_type = 'none'; SWAP_round = False
+        if loss_detection_method == 'SWAP' and ((atom_array_sim and (round_ix+1)%loss_detection_frequency == 0) or (not atom_array_sim and (round_ix+1)%loss_detection_frequency == 0)): # check if its a SWAP round:
+            SWAP_round = True
+            SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
+            SWAP_round_index += 1
+        
+        # print(f"round_ix = {round_ix}, SWAP_round = {SWAP_round}")
+        put_detectors = True # GB's change - we always want to put detectors. Now init_round controls the type of detectors and not the variable put_detectors
+        init_round = True if round_ix == 0 else False
+        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+        if xzzx: # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
+            
+            # new version of stabilizer checks to fix weight=2 checks:
+            lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
+            # old version:
+            # lc.append(qec.surface_code.measure_stabilizers_xzzx, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
+        else:
+            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
+        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+    
+    # print(f"adding all QEC rounds took: {time.time() - start_time:.6f}s")
+
+
+
+############### Circuits: ###############
+
+def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, 
+                                logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', 
+                                loss_detection_frequency = 1, atom_array_sim=False, replace_H_Ry=False, xzzx=False, noise_params={}, printing=False, circuit_index = '0', measure_wrong_basis=False):
+    """ This circuit simulated 1 logical qubit, a memory experiment with QEC cycles. We take perfect initialization and measurement and put noise only on the QEC cycles part.
+    If measure_wrong_basis = True: we are measuring in the opposite basis to initialization.
+    """
+    assert logical_basis in ['X', 'Z'] # init and measurement basis for the single qubit logical state
+    assert num_logicals == 1
+    
+    if printing:
+        print(f"entangling Pauli error rate = {entangling_gate_error_rate}, entangling loss rate = {entangling_gate_loss_rate}")
+    
+    
+    ordering = organize_ordering_array(ordering=ordering, QEC_cycles=QEC_cycles)
+
 
     if code == 'Rotated_Surface':
         logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
@@ -48,23 +87,10 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
         logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
     
     if atom_array_sim:
-        # playing with error model: # it works!!! :)
-        # entangling_gate_loss_rate = 0.06
-        # single_qubit_loss_rate = 0.06
-        # lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
-        #                         loss_noise_scale_factor=1, spam_noise_scale_factor=1,
-        #                         gate_noise_scale_factor=1, idle_noise_scale_factor=1,
-        #                         atom_array_sim = atom_array_sim,
-        #                         entangling_gate_loss_rate=entangling_gate_loss_rate,
-        #                         single_qubit_loss_rate=single_qubit_loss_rate
-        #                         )
-        # scale_factor = 1
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
                             loss_noise_scale_factor=1, spam_noise_scale_factor=1,
                             gate_noise_scale_factor=1, idle_noise_scale_factor=1,
                             atom_array_sim = atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index = circuit_index, **noise_params)
-        
-        # lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0; lc.spam_noise_scale_factor = 0; lc.idle_noise_scale_factor = 0 # debugging, without noise
         
     else:
         lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
@@ -90,32 +116,9 @@ def memory_experiment_surface_new(dx, dy, code, QEC_cycles, entangling_gate_erro
     # print(f"initializing the Logical circuit took: {time.time() - start_time:.6f}s")
 
     # QEC rounds:
-    start_time = time.time()
-    SWAP_round_index = 0; SWAP_round_type = 'even'; SWAP_round = False
-    for round_ix in range(QEC_cycles):
-        if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
-            SWAP_round = True
-            SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'
-            SWAP_round_index += 1
-        
-
-        # put_detectors = False if round_ix == 0 else True
-        put_detectors = True # GB's change - we always want to put detectors. Now init_round controls the type of detectors and not the variable put_detectors
-        init_round = True if round_ix == 0 else False
-        # if not init_round:
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
-        if xzzx: # measure xzzx construction, meaning without the H at the end and beginning of round on data qubits.
-            
-            # new version of stabilizer checks to fix weight=2 checks:
-            lc.append(qec.surface_code.measure_stabilizers_xzzx_weight2_new_ver, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
-
-            # lc.append(qec.surface_code.measure_stabilizers_xzzx, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
-        else:
-            lc.append(qec.surface_code.measure_stabilizers, list(range(len(logical_qubits))), order=ordering[round_ix], with_cnot=biased_pres_gates, SWAP_round = SWAP_round, SWAP_round_type=SWAP_round_type, compare_with_previous=True, put_detectors = put_detectors, logical_basis=logical_basis, init_round=init_round, automatic_detectors=False) # append QEC rounds
-        lc.append_from_stim_program_text("""TICK""") # starting a QEC round
+    add_QEC_rounds(lc, logical_qubits, QEC_cycles, loss_detection_method, atom_array_sim, loss_detection_frequency, xzzx, ordering, biased_pres_gates, logical_basis)
     
-    # print(f"adding all QEC rounds took: {time.time() - start_time:.6f}s")
-
+    
     # logical measurement step:
     start_time = time.time()
     if not atom_array_sim: lc.loss_noise_scale_factor = 0; lc.gate_noise_scale_factor=0
@@ -274,21 +277,9 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                 #     check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
                 #     lc.append('DETECTOR', check_targets)
 
-    # QEC_cycles = num_layers - 1
-    # ### Allow different orderings for different rounds
-    # if (type(ordering) is list) or (type(ordering) is np.ndarray):
-    #     if len(ordering) != QEC_cycles:
-    #         ordering = [ordering[0]]*QEC_cycles
-    #         if printing:
-    #             print(f"Incorrect number of orderings given. Defaulting to the first value: {ordering}")
-    #     else:
-    #         if printing:
-    #             print(f"Using orderings: {ordering}")
-    # else:
-    #     ordering = [ordering]*QEC_cycles
-    #     if printing:
-    #         print(f"Using orderings: {ordering}")
-    # ####
+    
+    # ordering = organize_ordering_array(ordering, QEC_cycles)
+
 
     if code == 'Rotated_Surface':
         logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
@@ -426,9 +417,9 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                     if num_CX_in_layer % 2 == 0:  # new GB - no entanglement in this layer
                         # construct the 2 body operators in each logical (t,t-1):
                         for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x,
-                                                      lc.logical_qubits[0].measure_qubits_z,
-                                                      lc.logical_qubits[1].measure_qubits_x,
-                                                      lc.logical_qubits[1].measure_qubits_z)):
+                                                    lc.logical_qubits[0].measure_qubits_z,
+                                                    lc.logical_qubits[1].measure_qubits_x,
+                                                    lc.logical_qubits[1].measure_qubits_z)):
                             meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
                             meas_q_logical = 0 if meas_q in np.concatenate(
                                 (lc.logical_qubits[0].measure_qubits_x, lc.logical_qubits[0].measure_qubits_z)) else 1
@@ -441,9 +432,9 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                     else:
                         # construct the 2 / 3 body operators between the logicals and with previous rounds (using measure qubits):
                         for meas_q in np.concatenate((lc.logical_qubits[0].measure_qubits_x,
-                                                      lc.logical_qubits[0].measure_qubits_z,
-                                                      lc.logical_qubits[1].measure_qubits_x,
-                                                      lc.logical_qubits[1].measure_qubits_z)):
+                                                    lc.logical_qubits[0].measure_qubits_z,
+                                                    lc.logical_qubits[1].measure_qubits_x,
+                                                    lc.logical_qubits[1].measure_qubits_z)):
                             # for meas_q in measure_qubits:
                             meas_q_type = 'X' if meas_q in measure_qubits_x else 'Z'
                             meas_q_logical = 0 if meas_q in np.concatenate(
@@ -473,8 +464,8 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
 
             # lc.append_from_stim_program_text("""TICK""") # ending a QEC round
             lc.append('MOVE_TO_STORAGE',
-                      np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]),
-                      200)
+                    np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]),
+                    200)
             # print('after ec', round_ix, cx_ix, lc.no_noise_zone, lc.storage_zone, lc.entangling_zone)
 
             QEC_cycles += 1
@@ -503,7 +494,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
         for index in range(num_logicals):
             logical_rec = []
             physical_data_qubit_layout = lc.logical_qubits[index].data_qubits.reshape((lc.logical_qubits[index].dy,
-                                                                                       lc.logical_qubits[index].dx))
+                                                                                    lc.logical_qubits[index].dx))
             if index == 0:
                 logical_x = physical_data_qubit_layout[lc.logical_qubits[index].dy // 2, :]
                 logical_x_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
@@ -519,7 +510,6 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
                 lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_rec), lc.num_observables)
 
     if logical_basis == 'XX':
-        # lc.append(qec.surface_code.measure_x, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
 
         # new GB - cancel out the H here with the final CX H gates:
         # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0)
@@ -547,8 +537,6 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
         lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_xx_rec), lc.num_observables)
 
     elif logical_basis == 'ZZ':
-        # lc.append(qec.surface_code.measure_z, [0,1], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors = False)
-
         # new GB - cancel out the H here with the final CX H gates:
         # lc.append('MOVE_TO_ENTANGLING', data_qubits, 0)
         lc.append('SQRT_Y', data_qubits_L1)
@@ -566,7 +554,7 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
         logical_zz_rec = []
         for index in range(num_logicals):
             physical_data_qubit_layout = lc.logical_qubits[index].data_qubits.reshape((lc.logical_qubits[index].dy,
-                                                                                       lc.logical_qubits[index].dx))
+                                                                                    lc.logical_qubits[index].dx))
             logical_z = physical_data_qubit_layout[:, lc.logical_qubits[index].dx // 2]
             logical_z_rec = -((num_logicals - index) * len(lc.logical_qubits[index].data_qubits) - np.array(
                 [np.argwhere(i == lc.logical_qubits[index].data_qubits)[0, 0] for i in logical_z]))
@@ -574,6 +562,169 @@ def CX_experiment_surface(dx, dy, code, num_CX_per_layer_list, num_layers=3, num
 
         lc.append('OBSERVABLE_INCLUDE', np.concatenate(logical_zz_rec), lc.num_observables)
     return lc
+
+
+
+
+
+def lattice_surgery_experiment_surface(dx, dy, code, num_layers=2, num_logicals=1, logical_basis='XX',
+                        biased_pres_gates=False, ordering='fowler', loss_detection_method='None',
+                        loss_detection_frequency=100, atom_array_sim=True, replace_H_Ry=False, xzzx=False,
+                        noise_params={}, printing=False, circuit_index='0'):
+    """ This circuit simulated 2 logical qubits, lattice surgery circuit."""
+
+    assert atom_array_sim
+    assert xzzx
+    assert num_logicals == 1
+    assert logical_basis in ['XX', 'ZZ']
+
+    def prepare_logicals_independently(lc, init_basis):
+        lc.append('MOVE_TO_ENTANGLING', data_qubits, move_duration) # Move to entangling
+        lc.append('R', data_qubits) # Reset all data qubits to plus
+        if lc.replace_H_Ry:
+            H_gate_string = 'SQRT_Y_DAG'
+        else:
+            H_gate_string = 'H'
+        if xzzx:
+            data_qubit_sub_indices = data_qubits_subA if init_basis == 'X' else data_qubits_subB
+            lc.append(H_gate_string, data_qubit_sub_indices)
+        else: # regular surface code
+            if init_basis == 'X':
+                lc.append(H_gate_string, data_qubits)
+        
+        
+    def measure_logicals_independently(lc, meas_basis):
+        lc.append('MOVE_TO_ENTANGLING', data_qubits, move_duration) # GB: this doesn't add idling noise because of the if statement inside. maybe we do need to add this noise?
+        if lc.replace_H_Ry:
+            H_gate_string = 'SQRT_Y_DAG'
+        else:
+            H_gate_string = 'H'
+        if xzzx: # apply H only on sublattice A (data_qubits_even):
+            data_qubit_sub_indices = data_qubits_subA if meas_basis == 'X' else data_qubits_subB
+            lc.append(H_gate_string, data_qubit_sub_indices)
+        else: # regular surface code |+> logical
+            if init_basis == 'X':
+                lc.append(H_gate_string, data_qubits)
+        lc.append('M', data_qubits)
+
+
+    def define_observable_on_merge_qubits(lc, merge_qubits_x, merge_qubits_z, meas_basis):
+        relevant_measure_qubits = lc.logical_qubits[0].measure_qubits_x if meas_basis== 'X' else lc.logical_qubits[0].measure_qubits_z
+        relevant_merge_qubits = merge_qubits_x if meas_basis == 'X' else merge_qubits_z
+        check_ixs = [sorted(measure_qubits_list).index(i) for i in relevant_merge_qubits]
+        check_targets = [stim.target_rec(-(num_of_measure_qubits - check_ix)) for check_ix in check_ixs]
+        lc.append('OBSERVABLE_INCLUDE', check_targets, lc.num_observables)
+
+    def define_detectors_on_each_logical_independently(lc, merge_qubits_x, merge_qubits_z, meas_basis):
+        relevant_measure_qubits = lc.logical_qubits[0].measure_qubits_x if meas_basis== 'X' else lc.logical_qubits[0].measure_qubits_z
+        relevant_merge_qubits = merge_qubits_x if meas_basis == 'X' else merge_qubits_z
+        detectors_qubits = [q for q in relevant_measure_qubits if q not in relevant_merge_qubits]
+        # detectors_qubits = relevant_measure_qubits - relevant_merge_qubits
+        for meas_q in detectors_qubits:
+            check_ix = sorted(measure_qubits_list).index(meas_q)
+            neighbors = [lc.logical_qubits[0].neighbor_from_index(physical_index=meas_q, which=direction) for
+                direction in [0, 1, 2, 3]]
+            all_relevant_data_qubits = sorted([neighbor for neighbor in neighbors if neighbor is not None])
+            check_ixs = [sorted(data_qubits_list).index(i) for i in all_relevant_data_qubits]
+            check_targets_data = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+            check_targets_meas_qubits = [stim.target_rec(-(num_of_data_qubits + num_of_measure_qubits - check_ix))]
+
+            lc.append('DETECTOR', check_targets_data + check_targets_meas_qubits)
+
+    def define_z_observables_on_each_logical_independently(lc):
+        L1_Z_col = dx-1 
+        L2_Z_col = dx+1
+        qubits_at_L1_Z_col = [qubit for qubit, pos in zip(logical_qubits[0].qubit_indices, logical_qubits[0].positions) if pos[1] == L1_Z_col]
+        qubits_at_L2_Z_col = [qubit for qubit, pos in zip(logical_qubits[0].qubit_indices, logical_qubits[0].positions) if pos[1] == L2_Z_col]
+        all_Z1Z2_qubits = qubits_at_L1_Z_col + qubits_at_L2_Z_col
+        check_ixs = [data_qubits_list.index(i) for i in all_Z1Z2_qubits]
+        check_targets = [stim.target_rec(-(num_of_data_qubits - check_ix)) for check_ix in check_ixs]
+        lc.append('OBSERVABLE_INCLUDE', check_targets, lc.num_observables)
+
+    
+    # ordering = organize_ordering_array(ordering=ordering, QEC_cycles=num_layers)
+    
+    if code == 'Rotated_Surface':
+        logical_qubits = [qec.surface_code.RotatedSurfaceCode(dx, dy) for _ in range(num_logicals)]
+    elif code == 'Surface':
+        logical_qubits = [qec.surface_code.SurfaceCode(dx, dy) for _ in range(num_logicals)]
+
+    lc = LogicalCircuit(logical_qubits, initialize_circuit=False,
+                        loss_noise_scale_factor=1, spam_noise_scale_factor=1,
+                        gate_noise_scale_factor=1, idle_noise_scale_factor=1,
+                        atom_array_sim=atom_array_sim, replace_H_Ry=replace_H_Ry, circuit_index=circuit_index,
+                        circuit_type='LS', **noise_params)
+
+
+    # if num_layers > 1:  # we have QEC # Q: do we want this here?
+    #     lc.append('MOVE_TO_STORAGE',
+    #             np.concatenate([lc.logical_qubits[i].measure_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
+    
+    # lc.append('MOVE_TO_ENTANGLING',
+    #             np.concatenate([lc.logical_qubits[i].data_qubits for i in range(len(lc.logical_qubits))]), 1e-3)
+    
+    
+    ### Variables we are going to use:
+    target_dx = dx # find all qubits in the middle column (merge qubits)
+    qubits_at_target_dx = [qubit for qubit, pos in zip(logical_qubits[0].qubit_indices, logical_qubits[0].positions) if pos[1] == target_dx]
+    merge_qubits_x = [q for q in lc.logical_qubits[0].measure_qubits_x if q in qubits_at_target_dx]
+    merge_qubits_z = [q for q in lc.logical_qubits[0].measure_qubits_z if q in qubits_at_target_dx]
+    measure_qubits = list(lc.logical_qubits[0].measure_qubits_x) + list(lc.logical_qubits[0].measure_qubits_z)
+    measure_qubits_list = measure_qubits
+    num_of_measure_qubits = len(measure_qubits)
+    data_qubits = lc.logical_qubits[0].data_qubits
+    num_of_data_qubits = len(data_qubits)
+    data_qubits_list = data_qubits.tolist()
+    qubits_at_L0 = [qubit for qubit, pos in zip(logical_qubits[0].qubit_indices, logical_qubits[0].positions) if pos[1] < target_dx]
+    qubits_at_L1 = [qubit for qubit, pos in zip(logical_qubits[0].qubit_indices, logical_qubits[0].positions) if pos[1] > target_dx]
+    data_qubits_L0 = [qubit for qubit in data_qubits if qubit in qubits_at_L0]
+    data_qubits_L1 = [qubit for qubit in data_qubits if qubit in qubits_at_L1]
+    data_qubits_L0_subA = [qubit for qubit in data_qubits_L0 if qubit in lc.logical_qubits[0].data_qubits_even]
+    data_qubits_L0_subB = [qubit for qubit in data_qubits_L0 if qubit in lc.logical_qubits[0].data_qubits_odd]
+    data_qubits_L1_subA = [qubit for qubit in data_qubits_L1 if qubit in lc.logical_qubits[0].data_qubits_even]
+    data_qubits_L1_subB = [qubit for qubit in data_qubits_L1 if qubit in lc.logical_qubits[0].data_qubits_odd]
+    data_qubits_subA = data_qubits_L0_subA + data_qubits_L1_subA
+    data_qubits_subB = data_qubits_L0_subB + data_qubits_L1_subB
+    move_duration = 1e-3
+    
+    
+    # we always initialize 1 big surface code in the X basis:
+    lc.append(qec.surface_code.prepare_plus_no_gates, [0], xzzx=xzzx)
+
+    # lc.logical_qubits[0].visualize_code()
+    
+
+    # in each layer, we have stabilizer checks on each logical and between them. We can use the large code as usual.
+    # basis = 'X' if logical_basis == 'XX' else 'Z'
+    basis = 'X' # deterministic detectors are X always, because we initalize in |+> all the time
+    add_QEC_rounds(lc, logical_qubits, num_layers, loss_detection_method, atom_array_sim, loss_detection_frequency, xzzx, ordering, biased_pres_gates, basis)
+
+    no_ancillas = True if num_layers==0 else False
+    if logical_basis == 'XX':
+        lc.append(qec.surface_code.measure_x, [0], observable_include=True, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas)
+        return lc
+    
+    if logical_basis == 'ZZ':
+        # circuit 1: define observable as the product of the merge stabilizers:
+        Partial_lc = lc.full_copy() # first 2 rounds, no projective measurement
+        define_observable_on_merge_qubits(Partial_lc, merge_qubits_x, merge_qubits_z, meas_basis='Z')
+        
+        # circuit 2: split to 2 unrelated surface code.
+        Full_lc =  lc.full_copy() # first 2 rounds, no projective measurement
+        Full_lc.append(qec.surface_code.measure_z, [0], observable_include=False, xzzx=xzzx, automatic_detectors=False, no_ancillas = no_ancillas, put_detectors=False)
+        define_detectors_on_each_logical_independently(Full_lc, merge_qubits_x, merge_qubits_z, meas_basis='Z')
+        define_z_observables_on_each_logical_independently(Full_lc)
+
+        # print(f"Partial_lc = {Partial_lc}")
+        # print(f"Full_lc = {Full_lc}")
+    
+        return Partial_lc, Full_lc
+        
+    
+    
+    
+    
+
 
 
 def memory_experiment_surface(dx, dy, code, QEC_cycles, entangling_gate_error_rate, entangling_gate_loss_rate, erasure_ratio, num_logicals=1, logical_basis='X', biased_pres_gates = False, ordering = 'fowler', loss_detection_method = 'FREE', loss_detection_frequency = 1, atom_array_sim=False):
@@ -606,8 +757,9 @@ def memory_experiment_surface(dx, dy, code, QEC_cycles, entangling_gate_error_ra
         lc.append(qec.surface_code.prepare_plus, list(range(0, len(logical_qubits))), order=ordering, with_cnot=biased_pres_gates)
         if not atom_array_sim: lc.loss_noise_scale_factor = 1; lc.gate_noise_scale_factor=1
         
-        SWAP_round_index = 0; SWAP_round_type = 'none'; SWAP_round = False
+        SWAP_round_index = 0
         for round_ix in range(QEC_cycles):
+            SWAP_round_type = 'none'; SWAP_round = False
             if loss_detection_method == 'SWAP' and ((round_ix+1)%loss_detection_frequency == 0): # check if its a SWAP round:
                 SWAP_round = True
                 SWAP_round_type = 'even' if SWAP_round_index%2 ==0 else 'odd'

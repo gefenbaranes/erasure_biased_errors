@@ -7,7 +7,7 @@ from BiasedErasure.main_code.noise_channels import atom_array
 
 def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, 
                                 detection_events_signs: np.ndarray, use_loss_decoding=True,
-                                use_independent_decoder=True, use_independent_and_first_comb_decoder=False, first_comb_weight=0.0, noise_params={}, logical_gaps=False, num_shots=0):
+                                use_independent_decoder=True, use_independent_and_first_comb_decoder=False, first_comb_weight=0.0, noise_params={}, logical_gaps=False):
         
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
@@ -35,28 +35,21 @@ def Loss_MLE_Decoder_Experiment(Meta_params, dx: int, dy: int, output_dir: str, 
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, first_comb_weight=first_comb_weight,
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
-                                cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True)
+                                cycles = cycles, output_dir=output_dir, save_filename=None, save_data_during_sim=True, 
+                                use_independent_decoder=use_independent_decoder, use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                dont_use_loss_decoder= not use_loss_decoding)
 
         if not logical_gaps:
-                predictions, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
+                return simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
                                                         measurement_events = measurement_events, detection_events_signs=detection_events_signs,
-                                                        use_loss_decoding=use_loss_decoding,
-                                                        use_independent_decoder=use_independent_decoder,
-                                                        use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
-                                                        noise_params=noise_params)
+                                                        noise_params=noise_params, logical_gap = False)
 
 
-                return predictions, observable_flips, dems_list
         else:
-                predictions, log_probabilities, observable_flips, dems_list = simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
+                return simulator.count_logical_errors_experiment(num_shots = num_shots, dx = dx, dy = dy,
                                                         measurement_events = measurement_events, detection_events_signs=detection_events_signs,
-                                                        use_loss_decoding=use_loss_decoding,
-                                                        use_independent_decoder=use_independent_decoder,
-                                                        use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
                                                         noise_params=noise_params, logical_gap = True)
                 
-                return predictions, log_probabilities, observable_flips, dems_list
-
 
 
 
@@ -92,7 +85,7 @@ def get_lossless_circuit(Meta_params, dx: int, dy: int, noise_params: dict = {})
                                 cycles = cycles, output_dir="", save_filename=None, save_data_during_sim=True)
         
         
-        LogicalCircuit = simulator.generate_loss_circuit(dx = dx, dy = dy, noise_params=noise_params)
+        LogicalCircuit = simulator.generate_logical_circuit(dx = dx, dy = dy, noise_params=noise_params)
 
         return LogicalCircuit
 
@@ -109,29 +102,12 @@ def get_detection_events_experiment(Meta_params, dx: int, dy: int, output_dir: s
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
                                 cycles = cycles, output_dir=output_dir, save_filename=None)
         
-        detection_events, observable_flips= simulator.get_detection_events(dx = dx, dy = dy, measurement_events = measurement_events)
+        return simulator.get_detection_events(dx = dx, dy = dy, measurement_events = measurement_events)
         
-        return detection_events, observable_flips
-        
-
-
-def preprocess_comb_batches(Meta_params, dx: int, dy: int, output_dir: str, num_of_losses:int, batch_index:int):
-        """This function takes the measurement events, and generates detection events and observables filps."""        
-
-        # Step 0 - generate the Simulator class:
-        bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
-        # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
-        cycles = int(Meta_params['cycles'])
-        simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
-                                bloch_point_params=bloch_point_params, noise=atom_array , 
-                                phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
-                                cycles = cycles, output_dir=output_dir, save_filename=None)
-        
-        simulator.comb_preprocessing(dx = dx, dy = dy, num_of_losses = num_of_losses, batch_index=batch_index)
         
 
 
-def Loss_DEM_for_belief_matching(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray):
+def Loss_DEM_for_belief_matching(Meta_params, dx: int, dy: int, output_dir: str, measurement_events: np.ndarray, detection_events_signs: np.ndarray, use_independent_decoder:bool, use_independent_and_first_comb_decoder:bool, use_loss_decoding:bool):
         """This function decodes the loss information using mle. 
         Given heralded losses upon measurements, there are multiple potential loss events (with some probability) in the circuit.
         We use the MLE approximate decoding - for each potential loss event we create a DEM and connect all to generate the final DEM. We use MLE to decode given the ginal DEM and the experimental measurements.
@@ -155,11 +131,28 @@ def Loss_DEM_for_belief_matching(Meta_params, dx: int, dy: int, output_dir: str,
         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
                                 bloch_point_params=bloch_point_params, noise=atom_array , 
                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
-                                cycles = cycles, output_dir=output_dir, save_filename=None)
+                                use_independent_decoder=use_independent_decoder, use_independent_and_first_comb_decoder=use_independent_and_first_comb_decoder,
+                                cycles = cycles, output_dir=output_dir, save_filename=None, dont_use_loss_decoder= not use_loss_decoding)
         
         # Step 1 - decode:
-        dems_list, detection_events, observable_flips= simulator.make_dem_SSR_experiment(num_shots = num_shots, dx = dx, dy = dy, 
+        return simulator.make_dem_SSR_experiment(num_shots = num_shots, dx = dx, dy = dy, 
                                                                 measurement_events = measurement_events, detection_events_signs=detection_events_signs)
         
         
-        return dems_list, detection_events, observable_flips
+
+
+
+
+# def preprocess_comb_batches(Meta_params, dx: int, dy: int, output_dir: str, num_of_losses:int, batch_index:int):
+
+#         # Step 0 - generate the Simulator class:
+#         bloch_point_params = {'erasure_ratio': '1', 'bias_ratio': '0.5'}
+#         # file_name = create_file_name(Meta_params, bloch_point_params = bloch_point_params)
+#         cycles = int(Meta_params['cycles'])
+#         simulator = Simulator(Meta_params=Meta_params, atom_array_sim=True, 
+#                                 bloch_point_params=bloch_point_params, noise=atom_array , 
+#                                 phys_err_vec=None, loss_detection_method=HeraldedCircuit_SWAP_LD, 
+#                                 cycles = cycles, output_dir=output_dir, save_filename=None)
+        
+#         simulator.comb_preprocessing(dx = dx, dy = dy, num_of_losses = num_of_losses, batch_index=batch_index)
+        
