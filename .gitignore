@@ -136,3 +136,5 @@ dmypy.json
 
 # macOS system files
 .DS_Store
+/BiasedErasure/main_code/__pycache__
+*.pyc

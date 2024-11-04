@@ -477,7 +477,7 @@ class Simulator:
         
         
         PartialMeasurements = measurement_events[:, :PartialCircuit.num_measurements]
-        PartialDetection_events_signs = detection_events_signs[:, :PartialCircuit.num_detectors] if detection_events_signs is not None else None
+        PartialDetection_events_signs = detection_events_signs[:PartialCircuit.num_detectors] if detection_events_signs is not None else None
         
         if logical_gap:
             self.Meta_params['circuit_type'] = 'lattice_surgery_full'
