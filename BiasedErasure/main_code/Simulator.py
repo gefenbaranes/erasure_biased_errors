@@ -476,7 +476,8 @@ class Simulator:
         
         
         
-        PartialMeasurements = measurement_events[:, :PartialCircuit.num_measurements] 
+        PartialMeasurements = measurement_events[:, :PartialCircuit.num_measurements]
+        PartialDetection_events_signs = detection_events_signs[:, :PartialCircuit.num_detectors] if detection_events_signs is not None else None
         
         if logical_gap:
             self.Meta_params['circuit_type'] = 'lattice_surgery_full'
@@ -486,7 +487,7 @@ class Simulator:
             self.Meta_params['circuit_type'] = 'lattice_surgery_partial'
 
             Partial_predictions, Partial_log_probabilities, Partial_observable_flips, Partial_dems_list = self.decode_circuit(LogicalCircuit=PartialCircuit, num_shots = num_shots, dx = dx, dy = dy,
-                                                        measurement_events = PartialMeasurements, detection_events_signs=detection_events_signs,
+                                                        measurement_events = PartialMeasurements, detection_events_signs=PartialDetection_events_signs,
                                                         noise_params=noise_params)
             self.Meta_params['circuit_type'] = 'lattice_surgery'
 
@@ -499,7 +500,7 @@ class Simulator:
                                                         noise_params=noise_params)
             self.Meta_params['circuit_type'] = 'lattice_surgery_partial'
             Partial_predictions, Partial_observable_flips, Partial_dems_list = self.decode_circuit(LogicalCircuit=PartialCircuit, num_shots = num_shots, dx = dx, dy = dy,
-                                                        measurement_events = PartialMeasurements, detection_events_signs=detection_events_signs,
+                                                        measurement_events = PartialMeasurements, detection_events_signs=PartialDetection_events_signs,
                                                         noise_params=noise_params)
             self.Meta_params['circuit_type'] = 'lattice_surgery'
 
