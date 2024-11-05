@@ -483,12 +483,12 @@ class Simulator:
             self.Meta_params['circuit_type'] = 'lattice_surgery_full'
             Full_predictions, Full_log_probabilities, Full_observable_flips, Full_dems_list = self.decode_circuit(LogicalCircuit=FullCircuit, num_shots = num_shots, dx = dx, dy = dy,
                                                         measurement_events = measurement_events, detection_events_signs=detection_events_signs,
-                                                        noise_params=noise_params)
+                                                        noise_params=noise_params, logical_gap = logical_gap)
             self.Meta_params['circuit_type'] = 'lattice_surgery_partial'
 
             Partial_predictions, Partial_log_probabilities, Partial_observable_flips, Partial_dems_list = self.decode_circuit(LogicalCircuit=PartialCircuit, num_shots = num_shots, dx = dx, dy = dy,
                                                         measurement_events = PartialMeasurements, detection_events_signs=PartialDetection_events_signs,
-                                                        noise_params=noise_params)
+                                                        noise_params=noise_params, logical_gap = logical_gap)
             self.Meta_params['circuit_type'] = 'lattice_surgery'
 
             return Partial_predictions, Partial_log_probabilities, Partial_observable_flips, Partial_dems_list, Full_predictions, Full_log_probabilities, Full_observable_flips, Full_dems_list
