@@ -320,7 +320,30 @@ class Simulator:
                 
         return measurement_events_all_shots, detection_events_all_shots, observable_flips_all_shots, LogicalCircuit
 
+    def generate_dems_no_loss_decoder(self, MLE_Loss_Decoder_class, num_shots):
+        dems_list = []
+        probs_lists = []
+        hyperedges_matrix_list = []
+        observables_errors_interactions_lists = []
+        
+        MLE_Loss_Decoder_class.set_up_Pauli_DEM()
+        final_dem_hyperedges_matrix = MLE_Loss_Decoder_class.Pauli_DEM_matrix # here observables are represented as detectors
+        final_dem_hyperedges_matrix, observables_errors_interactions= MLE_Loss_Decoder_class.convert_detectors_back_to_observables(final_dem_hyperedges_matrix)
+        
+        observables_errors_interactions_lists = [observables_errors_interactions]
+        hyperedges_matrix_list = [final_dem_hyperedges_matrix]
+        
+        dems_list, probs_lists = MLE_Loss_Decoder_class.convert_multiple_hyperedge_matrices_into_binary_new(hyperedges_matrix_list)
+        
+        # final step - repeat the lists for num_shots times:
+        dems_list = dems_list * num_shots
+        probs_lists = probs_lists * num_shots
+        observables_errors_interactions_lists = observables_errors_interactions_lists * num_shots
+
+        
+        return dems_list, probs_lists, observables_errors_interactions_lists
     
+        
     
     def generate_dems_loss_decoders(self, measurement_events, num_shots, type, MLE_Loss_Decoder_class):
         
@@ -438,8 +461,22 @@ class Simulator:
             
             if logical_gap:
                 assert self.decoder == 'MLE'
-                raise NotImplementedError
+                if self.decoder == "MLE":
+                    start_time = time.time()
+                    dems_list, probs_lists, observables_errors_interactions_lists = self.generate_dems_no_loss_decoder(MLE_Loss_Decoder_class, num_shots)
             
+                    # print(f"observables_errors_interactions_lists.shape = {len(observables_errors_interactions_lists)} and shape of first element: {len(observables_errors_interactions_lists[0])}")
+                    predictions, log_probabilities = qec.correlated_decoders.mle_loss.logical_gap_gurobi_with_dem_loss_fast(dems_list=dems_list,
+                                                                                                    probs_lists=probs_lists,
+                                                                                                    detector_shots=detection_events,
+                                                                                                    observables_lists=observables_errors_interactions_lists)
+                    print(f'MLE decoder took {time.time() - start_time:.6f}s.')
+
+                if self.printing:
+                    num_errors = np.sum(np.logical_xor(observable_flips, predictions))
+                    print(f"for dx = {dx}, dy = {dy}, {self.cycles} cycles, {num_shots} shots, we had {num_errors} errors (logical error = {(num_errors/num_shots):.1e})")
+                return predictions, log_probabilities, observable_flips, dems_list
+                
             else:
                 if self.decoder == "MLE":
                     if self.circuit_type == 'memory_wrong' or (self.circuit_type == 'lattice_surgery' and self.logical_basis == 'ZZ'): # we need to first convert observables to detectors, get dem, and reconvert back.
